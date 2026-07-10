@@ -1,5 +1,8 @@
 # @wasm-gaming/jgenesis-wasm
 
+[![Build](https://github.com/wasm-gaming/jgenesis-wasm/actions/workflows/build.yml/badge.svg)](https://github.com/wasm-gaming/jgenesis-wasm/actions/workflows/build.yml)
+[![Release](https://github.com/wasm-gaming/jgenesis-wasm/actions/workflows/release.yml/badge.svg)](https://github.com/wasm-gaming/jgenesis-wasm/actions/workflows/release.yml)
+
 jgenesis (Rust, wasm-bindgen web frontend) packaged as a wasm-gaming engine SDK.
 
 This subproject follows the same engine-package approach used by rsdkv3 and rsdkv4:
