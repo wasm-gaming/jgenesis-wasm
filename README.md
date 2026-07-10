@@ -30,21 +30,32 @@ engine.destroy();
 ```bash
 make build        # WASM + SDK
 make build-sdk    # TS only
-make build-wasm   # invokes workspace jgenesis Docker build wrapper
+make build-wasm   # builds jgenesis-web in Docker (local scripts)
 make preview      # serves dist/ with COOP/COEP
 ```
 
-### dist/index.html relocation rule
+### dist/original and dist/index.html
 
-When the jgenesis runtime build produces its own `dist/index.html`, this package
-preserves that file by moving it to:
+`make build-wasm` clones `jsgroth/jgenesis`, builds `frontend/jgenesis-web`, and writes:
+
+- runtime package files to `dist/jgenesis/`
+- upstream web snapshot to `dist/original/`:
+  - `dist/original/index.html`
+  - `dist/original/pkg/`
+  - `dist/original/js/`
+
+Then `build-demo` compiles this package demo shell and writes it to:
+
+- `dist/index.html`
+
+`build-demo` will not overwrite an existing upstream `dist/original/index.html`.
+
+If `build-demo` runs before `build-wasm`, and `dist/index.html` already exists, it may still be preserved at:
 
 - `dist/original/index.html`
 
-Then `build-demo` writes this package demo shell to `dist/index.html`.
-
 ## Notes
 
-- Runtime artifacts are mirrored from workspace public outputs to `dist/jgenesis/`
-  by `scripts/build-docker.sh`.
+- WASM build orchestration is local to this repo via `scripts/build-docker.sh` and
+  `scripts/build-jgenesis.sh`.
 - ROM files are user-provided and never committed.
