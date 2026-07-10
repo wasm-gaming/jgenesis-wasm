@@ -9,10 +9,16 @@ FRONTEND_DIR="$WORK_DIR/frontend/jgenesis-web"
 TARGET_DIR="$PROJECT_DIR/dist/jgenesis"
 ORIGINAL_DIR="$PROJECT_DIR/dist/original"
 DOCKERFILE="$PROJECT_DIR/scripts/jgenesis-builder.Dockerfile"
+PATCH_SCRIPT="$PROJECT_DIR/scripts/patch-jgenesis-web.mjs"
 IMAGE_TAG="jgenesis-builder:latest"
 
 if [[ ! -f "$DOCKERFILE" ]]; then
     echo "Missing Dockerfile: $DOCKERFILE" >&2
+    exit 1
+fi
+
+if [[ ! -f "$PATCH_SCRIPT" ]]; then
+    echo "Missing patch script: $PATCH_SCRIPT" >&2
     exit 1
 fi
 
@@ -24,6 +30,9 @@ mkdir -p "$ORIGINAL_DIR"
 
 echo "Cloning jsgroth/jgenesis..."
 git clone --depth=1 https://github.com/jsgroth/jgenesis.git "$WORK_DIR"
+
+echo "Applying local jgenesis-web ROM-bytes patch..."
+node "$PATCH_SCRIPT" "$WORK_DIR"
 
 echo "Building Docker image (Rust nightly + wasm-pack)..."
 docker build -t "$IMAGE_TAG" -f "$DOCKERFILE" "$PROJECT_DIR/scripts"

@@ -7,13 +7,39 @@ export { manifest };
 type JgenesisModule = {
   default: (module_or_path?: unknown, memory?: WebAssembly.Memory) => Promise<unknown>;
   EmulatorChannel: new () => {
-    request_open_rom_bytes(rom: Uint8Array, rom_file_name: string): void;
+    request_open_rom_bytes?: (rom: Uint8Array, rom_file_name: string) => void;
+    request_open_file?: () => void;
     request_reset(): void;
   };
   WebConfigRef: new () => unknown;
   run_emulator(config_ref: unknown, emulator_channel: unknown): Promise<void>;
   init_logger?: () => void;
 };
+
+const MOUNT_TARGET_ID = 'jgenesis-wasm';
+
+function ensureMountTarget(canvas: HTMLCanvasElement): void {
+  if (typeof document === 'undefined') return;
+
+  if (document.getElementById(MOUNT_TARGET_ID)) {
+    return;
+  }
+
+  const mountTarget = document.createElement('div');
+  mountTarget.id = MOUNT_TARGET_ID;
+  mountTarget.style.width = '100%';
+  mountTarget.style.height = '100%';
+
+  const parent = canvas.parentElement ?? document.body;
+  if (parent) {
+    parent.insertBefore(mountTarget, canvas);
+  }
+
+  // Upstream jgenesis-web mounts its own canvas into #jgenesis-wasm.
+  if (canvas.parentElement) {
+    canvas.remove();
+  }
+}
 
 export type JgenesisInstance = EngineInstance & {
   storageNamespace: string;
@@ -62,7 +88,7 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
   const wasmUrl = config.wasmUrl ?? new URL('./jgenesis_web_bg.wasm', import.meta.url).href;
   const opts = { ...DEFAULT_JGENESIS_OPTIONS, ...(config.options as JgenesisOptions | undefined) };
 
-  if (canvas.id !== 'canvas') canvas.id = 'canvas';
+  ensureMountTarget(canvas);
 
   let romBytes = toUint8(assets?.rom ?? assets?.data);
   if (!romBytes && config.romProvider) {
@@ -75,12 +101,6 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
   const mod = (await import(/* @vite-ignore */ jsUrl)) as JgenesisModule;
   await mod.default(wasmUrl);
 
-  try {
-    mod.init_logger?.();
-  } catch {
-    // logger init may fail harmlessly in some browser contexts
-  }
-
   const channel = new mod.EmulatorChannel();
   const configRef = new mod.WebConfigRef();
 
@@ -89,7 +109,13 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
     emit({ type: 'error', error });
   });
 
-  channel.request_open_rom_bytes(romBytes, opts.romFileName);
+  if (typeof channel.request_open_rom_bytes === 'function') {
+    channel.request_open_rom_bytes(romBytes, opts.romFileName);
+  } else {
+    throw new Error(
+      'jgenesis: runtime does not support request_open_rom_bytes; rebuild WASM with local patching enabled',
+    );
+  }
 
   emit({ type: 'ready' });
 
