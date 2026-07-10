@@ -1,0 +1,51 @@
+{
+  "name": "@wasm-gaming/jgenesis-wasm",
+  "version": "0.1.0",
+  "description": "jgenesis compiled to WebAssembly, with a JS SDK conforming to the wasm-gaming engine contract.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wasm-gaming/jgenesis-wasm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wasm-gaming/jgenesis-wasm/issues"
+  },
+  "homepage": "https://github.com/wasm-gaming/jgenesis-wasm#readme",
+  "type": "module",
+  "main": "./dist/jgenesis/jgenesis.sdk.js",
+  "types": "./dist/jgenesis/jgenesis.sdk.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/jgenesis/jgenesis.sdk.d.ts",
+      "import": "./dist/jgenesis/jgenesis.sdk.js"
+    },
+    "./options": {
+      "types": "./dist/jgenesis/jgenesis.options.d.ts",
+      "import": "./dist/jgenesis/jgenesis.options.js"
+    },
+    "./manifest": "./dist/manifest.json"
+  },
+  "files": [
+    "dist/jgenesis/",
+    "dist/manifest.json",
+    "src/jgenesis.manifest.ts",
+    "src/jgenesis.options.ts",
+    "src/jgenesis.sdk.ts",
+    "README.md"
+  ],
+  "comment:scripts": "Build logic lives in the Makefile, not here (make build / build-sdk / build-wasm / preview).",
+  "scripts": {},
+  "peerDependencies": {
+    "@wasm-gaming/engine-specs": "*"
+  },
+  "peerDependenciesMeta": {
+    "@wasm-gaming/engine-specs": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@wasm-gaming/engine-specs": "^0.1.0",
+    "typescript": "^5.5.0"
+  },
+  "engineContract": "https://github.com/wasm-gaming/engine-specs",
+  "license": "MIT"
+}

@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Cache
+__pycache__/
+
+# Build workspace + output
+.tmp/
+.peers/
+dist/
+*.tsbuildinfo
+
+# Local ROM assets are user-provided
+*.bin
+*.gen
+*.md
+*.smd
+*.sfc
+*.smc
+*.nes
+*.gb
+*.gba
+
+# OS / editor
+.DS_Store
+.vscode/
