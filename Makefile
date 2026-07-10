@@ -8,7 +8,7 @@
 
 BIN := node_modules/.bin
 
-PORT ?= 8025
+PORT ?= 8026
 
 .PHONY: build build-sdk build-lib build-manifest build-demo build-wasm \
 	preview typecheck test release-check i install clean help
@@ -33,12 +33,12 @@ build-manifest: build-lib ## Serialize typed manifest → dist/manifest.json
 
 build-demo: build-lib ## Compile demo + keep upstream index at dist/original/index.html
 	@mkdir -p dist/original
-	@if [ -f dist/index.html ]; then mv dist/index.html dist/original/index.html; fi
+	@if [ -f dist/index.html ] && [ ! -f dist/original/index.html ]; then mv dist/index.html dist/original/index.html; fi
 	$(BIN)/tsc -p tsconfig.demo.json
 	cp src/demo/index.html dist/index.html
 
 build-wasm: ## Build jgenesis runtime artifacts via Docker wrapper
-	bash scripts/build-docker.sh
+	bash scripts/build-jgenesis-docker.sh
 
 typecheck: build-lib
 	$(BIN)/tsc -p tsconfig.json --noEmit

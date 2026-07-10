@@ -11,15 +11,15 @@ dist/
 *.tsbuildinfo
 
 # Local ROM assets are user-provided
-*.bin
-*.gen
-*.md
-*.smd
-*.sfc
-*.smc
-*.nes
-*.gb
-*.gba
+# *.bin
+# *.gen
+# *.md
+# *.smd
+# *.sfc
+# *.smc
+# *.nes
+# *.gb
+# *.gba
 
 # OS / editor
 .DS_Store
