@@ -51,6 +51,14 @@
       max-width: 34rem;
       line-height: 1.4;
     }
+    #runtime {
+      font-size: 0.8rem;
+      color: #9eb1c9;
+      border: 1px solid #2c3a4d;
+      border-radius: 999px;
+      padding: 4px 12px;
+    }
+    #runtime b { color: #43d4ff; font-weight: 600; }
   </style>
   <script type="importmap">
     {
@@ -64,6 +72,7 @@
   <div id="picker">
     <h2>JGenesis SDK demo</h2>
     <p id="status">Drop a ROM or pick one to boot the engine.</p>
+    <p id="runtime"></p>
     <input id="file" type="file" accept=".bin,.gen,.md,.smd,.sfc,.smc,.nes,.gb,.gba" hidden />
     <small>
       This demo boots jgenesis from runtime ROM bytes (no bundled game assets).

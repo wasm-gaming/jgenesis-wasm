@@ -93,6 +93,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: sdk-dist
@@ -101,6 +102,15 @@ jobs:
         with:
           name: wasm-dist
           path: dist
+      # GitHub Pages cannot send COOP/COEP headers, so inject coi-serviceworker
+      # (Pages-only; local dist stays clean so `make preview.single` still
+      # exercises the single-threaded build). With isolation active the SDK
+      # picks the threaded runtime automatically.
+      - name: Enable cross-origin isolation via coi-serviceworker
+        run: |
+          cp src/demo/vendor/coi-serviceworker.min.js dist/
+          sed -i 's|<head>|<head>\n  <script src="./coi-serviceworker.min.js"></script>|' dist/index.html
+          grep -q coi-serviceworker dist/index.html
       - uses: actions/configure-pages@v5
         with:
           enablement: true

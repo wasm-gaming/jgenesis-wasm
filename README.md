@@ -69,7 +69,13 @@ If `build-demo` runs before `build-wasm`, and `dist/index.html` already exists, 
 - SDK selects the runtime pair automatically (glue and wasm must always match —
   wasm-bindgen export names embed per-build crate hashes):
   - `jgenesis.js` + `jgenesis.threaded.wasm` when `crossOriginIsolated === true`
-  - `jgenesis.single.js` + `jgenesis.single.wasm` otherwise (e.g. GitHub Pages);
+  - `jgenesis.single.js` + `jgenesis.single.wasm` otherwise;
     this build is compiled without atomics/shared memory and streams audio to
     the worklet over a MessagePort instead of a SharedArrayBuffer
+- The GitHub Pages demo deploy injects [coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker)
+  (vendored at `src/demo/vendor/`) into `dist/index.html` so the page becomes
+  cross-origin isolated and gets the threaded build; the single-thread pair
+  remains the fallback for browsers without service workers. This is Pages-only:
+  the local `dist/` is untouched, so `make preview.single` still exercises the
+  single-threaded build.
 - ROM files are user-provided and never committed.

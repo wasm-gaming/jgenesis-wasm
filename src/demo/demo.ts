@@ -53,8 +53,21 @@ async function bootFromFile(file: File): Promise<void> {
   }
 }
 
+// Mirrors the SDK's runtime selection (defaultRuntimeFiles): threaded when the
+// page is cross-origin isolated, single-threaded otherwise.
+function showRuntimeBadge(): void {
+  const runtime = document.getElementById('runtime');
+  if (!runtime) return;
+
+  const threaded = window.crossOriginIsolated === true;
+  runtime.innerHTML = threaded
+    ? 'runtime: <b>threaded</b> (cross-origin isolated)'
+    : 'runtime: <b>single-threaded</b> (not cross-origin isolated)';
+}
+
 function offerPicker(): void {
   status.textContent = 'Pick a ROM file or drag-and-drop it anywhere on the page.';
+  showRuntimeBadge();
 
   fileInput.hidden = false;
   fileInput.addEventListener('change', () => {
