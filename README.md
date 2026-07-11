@@ -43,8 +43,11 @@ make preview      # serves dist/ with COOP/COEP
 
 - runtime package files to `dist/jgenesis/`
   - `jgenesis.js`
+  - `jgenesis.d.ts`
   - `jgenesis.threaded.wasm`
+  - `jgenesis.threaded.wasm.d.ts`
   - `jgenesis.single.wasm`
+  - `jgenesis.single.wasm.d.ts`
 - upstream web snapshot to `dist/original/`:
   - `dist/original/index.html`
   - `dist/original/pkg/`
