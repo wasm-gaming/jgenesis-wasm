@@ -19,12 +19,15 @@ type JgenesisModule = {
 
 const MOUNT_TARGET_ID = 'jgenesis-wasm';
 
-function defaultWasmFileName(): string {
+// wasm-bindgen glue is generated per-binary (its closure export names embed
+// crate hashes that differ between the two builds), so the JS glue and the
+// wasm file must always be picked as a matching pair.
+function defaultRuntimeFiles(): { js: string; wasm: string } {
   if (typeof window !== 'undefined' && window.crossOriginIsolated) {
-    return 'jgenesis.threaded.wasm';
+    return { js: 'jgenesis.js', wasm: 'jgenesis.threaded.wasm' };
   }
 
-  return 'jgenesis.single.wasm';
+  return { js: 'jgenesis.single.js', wasm: 'jgenesis.single.wasm' };
 }
 
 function ensureMountTarget(canvas: HTMLCanvasElement): void {
@@ -118,25 +121,28 @@ function normalizeStorageNamespace(namespace: unknown): string {
 }
 
 // The wasm runtime loads its AudioWorklet processor from a page-relative URL
-// ("./js/audio-processor.js?r=…"), which only resolves if the host page happens
-// to sit next to that file. Redirect those requests to the copy shipped inside
-// this package (next to jgenesis.js) so hosts don't have to mirror the layout.
-let workletTargetUrl = '';
+// ("./js/audio-processor.js?r=…" threaded, "./js/audio-processor-single.js?r=…"
+// single-thread), which only resolves if the host page happens to sit next to
+// that file. Redirect those requests to the copies shipped inside this package
+// (next to the glue), preserving the requested filename so each runtime
+// variant gets its own processor.
+let workletJsBaseUrl = '';
 let workletRedirectInstalled = false;
 
 function installAudioWorkletRedirect(jsUrl: string): void {
   if (typeof AudioWorklet === 'undefined') return;
 
-  workletTargetUrl = new URL('./js/audio-processor.js', jsUrl).href;
+  workletJsBaseUrl = jsUrl;
   if (workletRedirectInstalled) return;
   workletRedirectInstalled = true;
 
   const originalAddModule = AudioWorklet.prototype.addModule;
   AudioWorklet.prototype.addModule = function (moduleURL: string | URL, options?: WorkletOptions) {
     const url = String(moduleURL);
-    if (workletTargetUrl && url.includes('audio-processor.js')) {
-      const query = url.includes('?') ? url.slice(url.indexOf('?')) : '';
-      return originalAddModule.call(this, workletTargetUrl + query, options);
+    const match = url.match(/([\w-]*audio-processor[\w-]*\.js)(\?[^#]*)?$/);
+    if (workletJsBaseUrl && match) {
+      const target = new URL(`./js/${match[1]}`, workletJsBaseUrl).href;
+      return originalAddModule.call(this, target + (match[2] ?? ''), options);
     }
     return originalAddModule.call(this, moduleURL, options);
   };
@@ -154,8 +160,9 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
     }
   };
 
-  const jsUrl = config.jsUrl ?? new URL('./jgenesis.js', import.meta.url).href;
-  const wasmUrl = config.wasmUrl ?? new URL(`./${defaultWasmFileName()}`, import.meta.url).href;
+  const runtimeFiles = defaultRuntimeFiles();
+  const jsUrl = config.jsUrl ?? new URL(`./${runtimeFiles.js}`, import.meta.url).href;
+  const wasmUrl = config.wasmUrl ?? new URL(`./${runtimeFiles.wasm}`, import.meta.url).href;
   const opts = { ...DEFAULT_JGENESIS_OPTIONS, ...(config.options as JgenesisOptions | undefined) };
 
   installAudioWorkletRedirect(jsUrl);

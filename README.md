@@ -42,12 +42,11 @@ make preview      # serves dist/ with COOP/COEP
 `make build-wasm` clones `jsgroth/jgenesis`, builds `frontend/jgenesis-web`, and writes:
 
 - runtime package files to `dist/jgenesis/`
-  - `jgenesis.js`
+  - `jgenesis.js` + `jgenesis.threaded.wasm(.d.ts)` — threaded build (needs cross-origin isolation)
+  - `jgenesis.single.js` + `jgenesis.single.wasm(.d.ts)` — single-thread build (no COOP/COEP needed)
   - `jgenesis.d.ts`
-  - `jgenesis.threaded.wasm`
-  - `jgenesis.threaded.wasm.d.ts`
-  - `jgenesis.single.wasm`
-  - `jgenesis.single.wasm.d.ts`
+  - `js/audio-processor.js` (threaded, SharedArrayBuffer queue) and
+    `js/audio-processor-single.js` (plain-JS MessagePort queue)
 - upstream web snapshot to `dist/original/`:
   - `dist/original/index.html`
   - `dist/original/pkg/`
@@ -67,7 +66,10 @@ If `build-demo` runs before `build-wasm`, and `dist/index.html` already exists, 
 
 - WASM build orchestration is local to this repo via `scripts/build-docker.sh` and
   `scripts/build-jgenesis.sh`.
-- SDK selects runtime automatically:
-  - `jgenesis.threaded.wasm` when `crossOriginIsolated === true`
-  - `jgenesis.single.wasm` otherwise (e.g. GitHub Pages)
+- SDK selects the runtime pair automatically (glue and wasm must always match —
+  wasm-bindgen export names embed per-build crate hashes):
+  - `jgenesis.js` + `jgenesis.threaded.wasm` when `crossOriginIsolated === true`
+  - `jgenesis.single.js` + `jgenesis.single.wasm` otherwise (e.g. GitHub Pages);
+    this build is compiled without atomics/shared memory and streams audio to
+    the worklet over a MessagePort instead of a SharedArrayBuffer
 - ROM files are user-provided and never committed.

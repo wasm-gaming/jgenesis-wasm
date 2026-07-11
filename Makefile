@@ -54,6 +54,10 @@ preview: ## Serve dist/ with COOP/COEP headers
 	@echo "Serving dist/ at http://localhost:$(PORT) (Ctrl+C to stop)"
 	python3 scripts/preview-server.py --port $(PORT) --directory dist
 
+preview.single: ## Serve dist/ without COOP/COEP headers (single-threaded WASM)
+	@echo "Serving dist/ at http://localhost:$(PORT) (Ctrl+C to stop)"
+	python3 -m http.server $(PORT) --directory dist
+
 clean: ## Remove build outputs
 	@if [ -d dist ]; then find dist -mindepth 1 -delete; fi
 

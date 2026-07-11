@@ -47,7 +47,12 @@ docker run --rm \
     bash -lc "export PATH=\"$PATH:/usr/local/cargo/bin:/root/.cargo/bin\" && \
         rm -rf pkg-threaded pkg-single && \
         RUSTUP_TOOLCHAIN=nightly wasm-pack build --target web --out-dir pkg-threaded . -- -Z build-std=panic_abort,std && \
-        RUSTUP_TOOLCHAIN=nightly wasm-pack build --target web --out-dir pkg-single ."
+        RUSTFLAGS='--cfg getrandom_backend=\"wasm_js\"' \
+            RUSTUP_TOOLCHAIN=nightly wasm-pack build --target web --out-dir pkg-single ."
+# The single build sets RUSTFLAGS explicitly to override the workspace
+# .cargo/config.toml rustflags (+atomics/--shared-memory): without that
+# override the "single" wasm still imports shared memory and requires
+# cross-origin isolation, defeating its purpose.
 
 if [[ ! -d "$THREADED_PKG_DIR" ]]; then
     echo "Expected threaded build output not found: $THREADED_PKG_DIR" >&2
@@ -68,26 +73,38 @@ if [[ -d "$ORIGINAL_DIR" ]]; then
 fi
 
 echo "Copying dual WASM build output to $TARGET_DIR..."
+# wasm-bindgen glue is generated per-binary (closure export names embed crate
+# hashes), so each wasm ships with its own matching JS glue.
 cp "$THREADED_PKG_DIR/jgenesis_web.js" "$TARGET_DIR/jgenesis.js"
 cp "$THREADED_PKG_DIR/jgenesis_web_bg.wasm" "$TARGET_DIR/jgenesis.threaded.wasm"
+cp "$SINGLE_PKG_DIR/jgenesis_web.js" "$TARGET_DIR/jgenesis.single.js"
 cp "$SINGLE_PKG_DIR/jgenesis_web_bg.wasm" "$TARGET_DIR/jgenesis.single.wasm"
 cp "$THREADED_PKG_DIR/jgenesis_web.d.ts" "$TARGET_DIR/jgenesis.d.ts"
 cp "$THREADED_PKG_DIR/jgenesis_web_bg.wasm.d.ts" "$TARGET_DIR/jgenesis.threaded.wasm.d.ts"
-cp "$THREADED_PKG_DIR/jgenesis_web_bg.wasm.d.ts" "$TARGET_DIR/jgenesis.single.wasm.d.ts"
+cp "$SINGLE_PKG_DIR/jgenesis_web_bg.wasm.d.ts" "$TARGET_DIR/jgenesis.single.wasm.d.ts"
 cp "$THREADED_PKG_DIR/package.json" "$TARGET_DIR/package.json"
 cp "$THREADED_PKG_DIR/README.md" "$TARGET_DIR/README.md"
 
-if [[ -d "$THREADED_PKG_DIR/snippets" ]]; then
-    mkdir -p "$TARGET_DIR/snippets"
-    cp -R "$THREADED_PKG_DIR/snippets/"* "$TARGET_DIR/snippets/"
-fi
+# Each glue references its own hashed snippets/jgenesis-web-<hash>/ dir; copy both.
+for pkg_dir in "$THREADED_PKG_DIR" "$SINGLE_PKG_DIR"; do
+    if [[ -d "$pkg_dir/snippets" ]]; then
+        mkdir -p "$TARGET_DIR/snippets"
+        cp -R "$pkg_dir/snippets/"* "$TARGET_DIR/snippets/"
+    fi
+done
 
-# The AudioWorklet processor is fetched at runtime (not an ES import of the
-# glue), so ship it in the package with its import rewired to our renamed glue.
+# The AudioWorklet processors are fetched at runtime (not ES imports of the
+# glue), so ship them in the package. The threaded one gets its import rewired
+# to our renamed glue; the single-thread one is plain JS with no imports.
 if [[ -f "$FRONTEND_DIR/js/audio-processor.js" ]]; then
     mkdir -p "$TARGET_DIR/js"
     sed 's#"../pkg/jgenesis_web.js"#"../jgenesis.js"#' \
         "$FRONTEND_DIR/js/audio-processor.js" > "$TARGET_DIR/js/audio-processor.js"
+fi
+
+if [[ -f "$FRONTEND_DIR/js/audio-processor-single.js" ]]; then
+    mkdir -p "$TARGET_DIR/js"
+    cp "$FRONTEND_DIR/js/audio-processor-single.js" "$TARGET_DIR/js/audio-processor-single.js"
 fi
 
 echo "Copying upstream jgenesis-web build layout to $ORIGINAL_DIR..."

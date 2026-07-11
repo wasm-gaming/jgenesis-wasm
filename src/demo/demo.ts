@@ -4,7 +4,7 @@ import type { EngineEvent } from '@wasm-gaming/engine-specs';
 const picker = document.getElementById('picker') as HTMLDivElement;
 const status = document.getElementById('status') as HTMLParagraphElement;
 const fileInput = document.getElementById('file') as HTMLInputElement;
-const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+const canvas = document.querySelector('canvas') as HTMLCanvasElement;
 
 let booting = false;
 
