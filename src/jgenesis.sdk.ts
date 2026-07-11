@@ -50,6 +50,42 @@ function ensureMountTarget(canvas: HTMLCanvasElement): void {
   }
 }
 
+// Upstream's ui.js snippet manipulates these elements by id without null
+// checks (showUi, hideAllConfigsExcept, renderInputs, setRomTitle, …), and the
+// wasm runtime calls them during startup. Stub any that the host page doesn't
+// define so those calls are harmless no-ops.
+const UPSTREAM_UI_STUB_IDS = [
+  'loading-text',
+  'header-text',
+  'jgenesis',
+  'footer',
+  'smsgg-config',
+  'genesis-config',
+  'snes-config',
+  'gba-config',
+  'supported-files-info',
+  'input-config',
+  'controls',
+  'jgenesis-rom-title',
+];
+
+function ensureUpstreamUiStubs(): void {
+  if (typeof document === 'undefined') return;
+
+  const missing = UPSTREAM_UI_STUB_IDS.filter((id) => !document.getElementById(id));
+  if (missing.length === 0) return;
+
+  const container = document.createElement('div');
+  container.style.display = 'none';
+  container.setAttribute('aria-hidden', 'true');
+  for (const id of missing) {
+    const stub = document.createElement('div');
+    stub.id = id;
+    container.appendChild(stub);
+  }
+  document.body?.appendChild(container);
+}
+
 export type JgenesisInstance = EngineInstance & {
   storageNamespace: string;
 };
@@ -81,6 +117,31 @@ function normalizeStorageNamespace(namespace: unknown): string {
   return cleaned || 'default';
 }
 
+// The wasm runtime loads its AudioWorklet processor from a page-relative URL
+// ("./js/audio-processor.js?r=…"), which only resolves if the host page happens
+// to sit next to that file. Redirect those requests to the copy shipped inside
+// this package (next to jgenesis.js) so hosts don't have to mirror the layout.
+let workletTargetUrl = '';
+let workletRedirectInstalled = false;
+
+function installAudioWorkletRedirect(jsUrl: string): void {
+  if (typeof AudioWorklet === 'undefined') return;
+
+  workletTargetUrl = new URL('./js/audio-processor.js', jsUrl).href;
+  if (workletRedirectInstalled) return;
+  workletRedirectInstalled = true;
+
+  const originalAddModule = AudioWorklet.prototype.addModule;
+  AudioWorklet.prototype.addModule = function (moduleURL: string | URL, options?: WorkletOptions) {
+    const url = String(moduleURL);
+    if (workletTargetUrl && url.includes('audio-processor.js')) {
+      const query = url.includes('?') ? url.slice(url.indexOf('?')) : '';
+      return originalAddModule.call(this, workletTargetUrl + query, options);
+    }
+    return originalAddModule.call(this, moduleURL, options);
+  };
+}
+
 export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance> {
   const { canvas, assets, onEvent } = config;
   if (!canvas) throw new Error('jgenesis: config.canvas is required');
@@ -97,6 +158,8 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
   const wasmUrl = config.wasmUrl ?? new URL(`./${defaultWasmFileName()}`, import.meta.url).href;
   const opts = { ...DEFAULT_JGENESIS_OPTIONS, ...(config.options as JgenesisOptions | undefined) };
 
+  installAudioWorkletRedirect(jsUrl);
+  ensureUpstreamUiStubs();
   ensureMountTarget(canvas);
 
   let romBytes = toUint8(assets?.rom ?? assets?.data);

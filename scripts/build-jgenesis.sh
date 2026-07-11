@@ -82,6 +82,14 @@ if [[ -d "$THREADED_PKG_DIR/snippets" ]]; then
     cp -R "$THREADED_PKG_DIR/snippets/"* "$TARGET_DIR/snippets/"
 fi
 
+# The AudioWorklet processor is fetched at runtime (not an ES import of the
+# glue), so ship it in the package with its import rewired to our renamed glue.
+if [[ -f "$FRONTEND_DIR/js/audio-processor.js" ]]; then
+    mkdir -p "$TARGET_DIR/js"
+    sed 's#"../pkg/jgenesis_web.js"#"../jgenesis.js"#' \
+        "$FRONTEND_DIR/js/audio-processor.js" > "$TARGET_DIR/js/audio-processor.js"
+fi
+
 echo "Copying upstream jgenesis-web build layout to $ORIGINAL_DIR..."
 mkdir -p "$ORIGINAL_DIR/pkg"
 cp -R "$THREADED_PKG_DIR/"* "$ORIGINAL_DIR/pkg/"
