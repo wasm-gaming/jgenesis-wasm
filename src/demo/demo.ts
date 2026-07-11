@@ -26,7 +26,12 @@ async function bootFromBytes(rom: Uint8Array, fileName = 'game.bin'): Promise<vo
       onEvent: (ev: EngineEvent) => {
         console.log('[demo] engine event', ev);
         const message = getEngineErrorMessage(ev);
-        if (message) alert('Engine error: ' + message);
+
+        if (message) {
+          console.error('[demo] engine error', message);
+          status.textContent = 'Engine error: ' + message;
+          // alert('Engine error: ' + message);
+        }
       },
     });
 
