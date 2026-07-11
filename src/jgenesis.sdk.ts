@@ -7,11 +7,12 @@ export { manifest };
 type JgenesisModule = {
   default: (module_or_path?: unknown, memory?: WebAssembly.Memory) => Promise<unknown>;
   EmulatorChannel: new () => {
+    clone(): unknown;
     request_open_rom_bytes?: (rom: Uint8Array, rom_file_name: string) => void;
     request_open_file?: () => void;
     request_reset(): void;
   };
-  WebConfigRef: new () => unknown;
+  WebConfigRef: new () => { clone(): unknown };
   run_emulator(config_ref: unknown, emulator_channel: unknown): Promise<void>;
   init_logger?: () => void;
 };
@@ -112,7 +113,9 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
   const channel = new mod.EmulatorChannel();
   const configRef = new mod.WebConfigRef();
 
-  mod.run_emulator(configRef, channel).catch((err: unknown) => {
+  // run_emulator consumes its arguments (wasm-bindgen moves them into Rust),
+  // so pass clones to keep `channel` usable for later requests.
+  mod.run_emulator(configRef.clone(), channel.clone()).catch((err: unknown) => {
     const error = err instanceof Error ? err : new Error(String(err));
     emit({ type: 'error', error });
   });
