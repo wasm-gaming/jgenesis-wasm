@@ -43,6 +43,8 @@ async function bootFromFile(file: File): Promise<void> {
     await bootFromBytes(new Uint8Array(await file.arrayBuffer()), file.name || 'game.bin');
   } catch (e) {
     console.error('[demo] boot failed', e);
+    const message = e instanceof Error ? e.message : String(e);
+    status.textContent = message;
   }
 }
 

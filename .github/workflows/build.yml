@@ -65,8 +65,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/jgenesis/jgenesis_web.js
-            dist/jgenesis/jgenesis_web_bg.wasm
+            dist/jgenesis/jgenesis.js
+            dist/jgenesis/jgenesis.threaded.wasm
+            dist/jgenesis/jgenesis.single.wasm
             dist/jgenesis/jgenesis_web.d.ts
             dist/jgenesis/jgenesis_web_bg.wasm.d.ts
             dist/jgenesis/jgenesis.sdk.js

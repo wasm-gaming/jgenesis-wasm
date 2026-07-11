@@ -18,6 +18,14 @@ type JgenesisModule = {
 
 const MOUNT_TARGET_ID = 'jgenesis-wasm';
 
+function defaultWasmFileName(): string {
+  if (typeof window !== 'undefined' && window.crossOriginIsolated) {
+    return 'jgenesis.threaded.wasm';
+  }
+
+  return 'jgenesis.single.wasm';
+}
+
 function ensureMountTarget(canvas: HTMLCanvasElement): void {
   if (typeof document === 'undefined') return;
 
@@ -84,8 +92,8 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
     }
   };
 
-  const jsUrl = config.jsUrl ?? new URL('./jgenesis_web.js', import.meta.url).href;
-  const wasmUrl = config.wasmUrl ?? new URL('./jgenesis_web_bg.wasm', import.meta.url).href;
+  const jsUrl = config.jsUrl ?? new URL('./jgenesis.js', import.meta.url).href;
+  const wasmUrl = config.wasmUrl ?? new URL(`./${defaultWasmFileName()}`, import.meta.url).href;
   const opts = { ...DEFAULT_JGENESIS_OPTIONS, ...(config.options as JgenesisOptions | undefined) };
 
   ensureMountTarget(canvas);

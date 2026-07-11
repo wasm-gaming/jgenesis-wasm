@@ -42,6 +42,9 @@ make preview      # serves dist/ with COOP/COEP
 `make build-wasm` clones `jsgroth/jgenesis`, builds `frontend/jgenesis-web`, and writes:
 
 - runtime package files to `dist/jgenesis/`
+  - `jgenesis.js`
+  - `jgenesis.threaded.wasm`
+  - `jgenesis.single.wasm`
 - upstream web snapshot to `dist/original/`:
   - `dist/original/index.html`
   - `dist/original/pkg/`
@@ -61,4 +64,7 @@ If `build-demo` runs before `build-wasm`, and `dist/index.html` already exists, 
 
 - WASM build orchestration is local to this repo via `scripts/build-docker.sh` and
   `scripts/build-jgenesis.sh`.
+- SDK selects runtime automatically:
+  - `jgenesis.threaded.wasm` when `crossOriginIsolated === true`
+  - `jgenesis.single.wasm` otherwise (e.g. GitHub Pages)
 - ROM files are user-provided and never committed.

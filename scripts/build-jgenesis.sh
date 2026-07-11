@@ -6,6 +6,8 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK_DIR="$PROJECT_DIR/.tmp/jgenesis-build"
 FRONTEND_DIR="$WORK_DIR/frontend/jgenesis-web"
+THREADED_PKG_DIR="$FRONTEND_DIR/pkg-threaded"
+SINGLE_PKG_DIR="$FRONTEND_DIR/pkg-single"
 TARGET_DIR="$PROJECT_DIR/dist/jgenesis"
 ORIGINAL_DIR="$PROJECT_DIR/dist/original"
 DOCKERFILE="$PROJECT_DIR/scripts/jgenesis-builder.Dockerfile"
@@ -42,10 +44,18 @@ docker run --rm \
         -v "$WORK_DIR:/workspace" \
         -w /workspace/frontend/jgenesis-web \
         "$IMAGE_TAG" \
-    bash -lc "export PATH=\"$PATH:/usr/local/cargo/bin:/root/.cargo/bin\" && RUSTUP_TOOLCHAIN=nightly wasm-pack build --target web . -- -Z build-std=panic_abort,std"
+    bash -lc "export PATH=\"$PATH:/usr/local/cargo/bin:/root/.cargo/bin\" && \
+        rm -rf pkg-threaded pkg-single && \
+        RUSTUP_TOOLCHAIN=nightly wasm-pack build --target web --out-dir pkg-threaded . -- -Z build-std=panic_abort,std && \
+        RUSTUP_TOOLCHAIN=nightly wasm-pack build --target web --out-dir pkg-single ."
 
-if [[ ! -d "$FRONTEND_DIR/pkg" ]]; then
-    echo "Expected build output not found: $FRONTEND_DIR/pkg" >&2
+if [[ ! -d "$THREADED_PKG_DIR" ]]; then
+    echo "Expected threaded build output not found: $THREADED_PKG_DIR" >&2
+    exit 1
+fi
+
+if [[ ! -d "$SINGLE_PKG_DIR" ]]; then
+    echo "Expected single-thread build output not found: $SINGLE_PKG_DIR" >&2
     exit 1
 fi
 
@@ -57,12 +67,23 @@ if [[ -d "$ORIGINAL_DIR" ]]; then
     find "$ORIGINAL_DIR" -mindepth 1 -delete
 fi
 
-echo "Copying build output (pkg/) to $TARGET_DIR..."
-cp -R "$FRONTEND_DIR/pkg/"* "$TARGET_DIR/"
+echo "Copying dual WASM build output to $TARGET_DIR..."
+cp "$THREADED_PKG_DIR/jgenesis_web.js" "$TARGET_DIR/jgenesis.js"
+cp "$THREADED_PKG_DIR/jgenesis_web_bg.wasm" "$TARGET_DIR/jgenesis.threaded.wasm"
+cp "$SINGLE_PKG_DIR/jgenesis_web_bg.wasm" "$TARGET_DIR/jgenesis.single.wasm"
+cp "$THREADED_PKG_DIR/jgenesis_web.d.ts" "$TARGET_DIR/jgenesis_web.d.ts"
+cp "$THREADED_PKG_DIR/jgenesis_web_bg.wasm.d.ts" "$TARGET_DIR/jgenesis_web_bg.wasm.d.ts"
+cp "$THREADED_PKG_DIR/package.json" "$TARGET_DIR/package.json"
+cp "$THREADED_PKG_DIR/README.md" "$TARGET_DIR/README.md"
+
+if [[ -d "$THREADED_PKG_DIR/snippets" ]]; then
+    mkdir -p "$TARGET_DIR/snippets"
+    cp -R "$THREADED_PKG_DIR/snippets/"* "$TARGET_DIR/snippets/"
+fi
 
 echo "Copying upstream jgenesis-web build layout to $ORIGINAL_DIR..."
 mkdir -p "$ORIGINAL_DIR/pkg"
-cp -R "$FRONTEND_DIR/pkg/"* "$ORIGINAL_DIR/pkg/"
+cp -R "$THREADED_PKG_DIR/"* "$ORIGINAL_DIR/pkg/"
 
 if [[ -d "$FRONTEND_DIR/js" ]]; then
     mkdir -p "$ORIGINAL_DIR/js"
