@@ -153,6 +153,12 @@ body:has(main.running) main {
   padding-top: 0;
 }
 
+/* So does the file-info panel, which the template floats over the picture.
+   demo.ts mirrors its rows to the console so the data is still reachable. */
+main.running .file-info {
+  display: none;
+}
+
 @media (max-width: 480px) {
   .console-bar .runtime-tag {
     display: none;

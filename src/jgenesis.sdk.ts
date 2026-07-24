@@ -5,7 +5,7 @@ import { DEFAULT_JGENESIS_OPTIONS, type JgenesisOptions } from './jgenesis.optio
 export { manifest };
 
 type JgenesisModule = {
-  default: (module_or_path?: unknown, memory?: WebAssembly.Memory) => Promise<unknown>;
+  default: (init?: { module_or_path?: unknown; memory?: WebAssembly.Memory }) => Promise<unknown>;
   EmulatorChannel: new () => {
     clone(): unknown;
     request_open_rom_bytes?: (rom: Uint8Array, rom_file_name: string) => void;
@@ -188,7 +188,9 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
   }
 
   const mod = (await import(/* @vite-ignore */ jsUrl)) as JgenesisModule;
-  await mod.default(wasmUrl);
+  // wasm-bindgen deprecated positional init args; both glue variants accept
+  // the single-object form.
+  await mod.default({ module_or_path: wasmUrl });
 
   const channel = new mod.EmulatorChannel();
   const configRef = new mod.WebConfigRef();
