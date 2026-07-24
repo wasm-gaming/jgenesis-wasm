@@ -17,7 +17,7 @@ This subproject follows the same engine-package approach used by rsdkv3 and rsdk
 import { manifest, load } from '@wasm-gaming/jgenesis-wasm';
 
 const engine = await load({
-  canvas,
+  canvasEl,          // or attachTo: someContainerEl
   assets: { rom: romBytes },
   options: { romFileName: 'sonic-1.bin' },
   onEvent: (e) => { /* ready | error */ },
@@ -52,11 +52,29 @@ make preview      # serves dist/ with COOP/COEP
   - `dist/original/pkg/`
   - `dist/original/js/`
 
-Then `build-demo` compiles this package demo shell and writes it to:
+Then `build-demo` assembles this package's demo and writes:
 
-- `dist/index.html`
+- `dist/demo/` — the shared template copied verbatim from
+  `@wasm-gaming/engine-specs/demo` (launcher, drop zones, OPFS asset
+  persistence, checksums)
+- `dist/index.html` — the page shell, which loads the template and hands it the
+  jgenesis SDK via `window.SDK`
+- `dist/theme.genesis.css` — the Genesis skin (see below)
+- `dist/demo.js` — compiled from `src/demo/demo.ts`
 
 `build-demo` will not overwrite an existing upstream `dist/original/index.html`.
+
+### Demo theming
+
+The template renders into shadow DOM and reads `--demo-*` custom properties,
+which inherit across shadow boundaries. `src/demo/theme.genesis.css` therefore
+re-skins the entire UI by redeclaring that token set — black console plastic,
+Genesis red and SEGA blue accents, hard 3–4px corners — without forking any
+template file. Rules after the `:root` block only touch page chrome this repo
+owns (the console faceplate header) plus the runtime viewport aspect ratio,
+which the template defaults to 5:4 while jgenesis renders 4:3.
+
+Re-pulling a newer template is just `npm update @wasm-gaming/engine-specs && make build-demo`.
 
 If `build-demo` runs before `build-wasm`, and `dist/index.html` already exists, it may still be preserved at:
 

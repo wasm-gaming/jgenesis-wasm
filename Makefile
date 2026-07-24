@@ -10,6 +10,10 @@ BIN := node_modules/.bin
 
 PORT ?= 8026
 
+# Shared demo template shipped by the engine contract package; this repo only
+# adds index.html + theme.genesis.css on top of it.
+SPECS_DEMO := node_modules/@wasm-gaming/engine-specs/demo
+
 .PHONY: build build-sdk build-lib build-manifest build-demo build-wasm \
 	preview typecheck test release-check i install clean help
 
@@ -35,7 +39,10 @@ build-demo: build-lib ## Compile demo + keep upstream index at dist/original/ind
 	@mkdir -p dist/original
 	@if [ -f dist/index.html ] && [ ! -f dist/original/index.html ]; then mv dist/index.html dist/original/index.html; fi
 	$(BIN)/tsc -p tsconfig.demo.json
+	rm -rf dist/demo
+	cp -R $(SPECS_DEMO) dist/demo
 	cp src/demo/index.html dist/index.html
+	cp src/demo/theme.genesis.css dist/theme.genesis.css
 
 build-wasm: ## Build jgenesis runtime artifacts via Docker wrapper
 	bash scripts/build-jgenesis-docker.sh

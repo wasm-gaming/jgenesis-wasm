@@ -5,6 +5,8 @@ export const manifest: EngineManifest = {
   id: 'jgenesis',
   version: '0.1.0',
   name: 'JGenesis (WebAssembly)',
+  description:
+    'Multi-system emulator — Genesis / Mega Drive, Master System, Game Gear, SNES, NES and Game Boy — compiled to WebAssembly.',
   artifacts: {
     wasm: 'jgenesis/jgenesis_web_bg.wasm',
     js: 'jgenesis/jgenesis_web.js',

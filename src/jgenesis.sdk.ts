@@ -30,7 +30,7 @@ function defaultRuntimeFiles(): { js: string; wasm: string } {
   return { js: 'jgenesis.single.js', wasm: 'jgenesis.single.wasm' };
 }
 
-function ensureMountTarget(canvas: HTMLCanvasElement): void {
+function ensureMountTarget(canvas: HTMLCanvasElement | null, attachTo: HTMLElement | null): void {
   if (typeof document === 'undefined') return;
 
   if (document.getElementById(MOUNT_TARGET_ID)) {
@@ -42,9 +42,14 @@ function ensureMountTarget(canvas: HTMLCanvasElement): void {
   mountTarget.style.width = '100%';
   mountTarget.style.height = '100%';
 
-  const parent = canvas.parentElement ?? document.body;
+  if (!canvas) {
+    attachTo?.appendChild(mountTarget);
+    return;
+  }
+
+  const parent = canvas.parentElement ?? attachTo ?? document.body;
   if (parent) {
-    parent.insertBefore(mountTarget, canvas);
+    parent.insertBefore(mountTarget, canvas.parentElement ? canvas : null);
   }
 
   // Upstream jgenesis-web mounts its own canvas into #jgenesis-wasm.
@@ -95,6 +100,8 @@ export type JgenesisInstance = EngineInstance & {
 
 export type JgenesisLoadConfig = EngineConfig & {
   romProvider?: () => Promise<AssetData> | AssetData;
+  /** Deprecated alias for `canvasEl`, kept for hosts written against 0.1.x. */
+  canvas?: HTMLCanvasElement;
 };
 
 function toUint8(x: unknown): Uint8Array | null {
@@ -149,8 +156,11 @@ function installAudioWorkletRedirect(jsUrl: string): void {
 }
 
 export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance> {
-  const { canvas, assets, onEvent } = config;
-  if (!canvas) throw new Error('jgenesis: config.canvas is required');
+  const { assets, onEvent, attachTo } = config;
+  const canvas = config.canvasEl ?? config.canvas ?? null;
+  if (!canvas && !attachTo) {
+    throw new Error('jgenesis: config.canvasEl or config.attachTo is required');
+  }
 
   const emit = (e: EngineEvent): void => {
     try {
@@ -167,7 +177,7 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
 
   installAudioWorkletRedirect(jsUrl);
   ensureUpstreamUiStubs();
-  ensureMountTarget(canvas);
+  ensureMountTarget(canvas, attachTo ?? null);
 
   let romBytes = toUint8(assets?.rom ?? assets?.data);
   if (!romBytes && config.romProvider) {

@@ -1,0 +1,160 @@
+/* Genesis skin for the @wasm-gaming/engine-specs demo template.
+ *
+ * Loaded after demo/demo.css. Everything the template renders lives in shadow
+ * DOM and reads --demo-* custom properties, which inherit through shadow
+ * boundaries — so re-declaring the token set here re-skins the whole UI.
+ * Rules past the :root block only touch page-level chrome this repo owns. */
+
+:root {
+  /* Black console plastic, lit from the sides by the two brand colors. */
+  --demo-bg-a: #16161a;
+  --demo-bg-b: #050506;
+  --demo-bg-gradient: linear-gradient(160deg, var(--demo-bg-a) 0%, var(--demo-bg-b) 100%);
+  --demo-bg-radial-1: rgba(232, 35, 42, 0.16);
+  --demo-bg-radial-2: rgba(0, 137, 207, 0.14);
+
+  --demo-text: #f2f2f5;
+  --demo-muted: #8f8f9c;
+
+  --demo-accent: #e8232a;
+  --demo-accent-rgb: 232, 35, 42;
+  --demo-accent-glow: 0 0 14px rgba(var(--demo-accent-rgb), 0.45), 0 0 34px rgba(var(--demo-accent-rgb), 0.2);
+
+  --demo-accent2: #0089cf;
+  --demo-accent2-rgb: 0, 137, 207;
+  --demo-accent2-glow: 0 0 14px rgba(var(--demo-accent2-rgb), 0.45), 0 0 34px rgba(var(--demo-accent2-rgb), 0.2);
+
+  /* Cartridge-shell panels: matte, hard-edged, no frosted white. */
+  --demo-panel-bg: rgba(17, 17, 20, 0.88);
+  --demo-panel-border: rgba(var(--demo-accent-rgb), 0.4);
+  --demo-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 60px rgba(0, 0, 0, 0.6);
+  --demo-panel-blur: 12px;
+  --demo-panel-radius: 4px;
+
+  --demo-subpanel-bg: rgba(9, 9, 11, 0.8);
+  --demo-subpanel-border: rgba(255, 255, 255, 0.09);
+  --demo-subpanel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --demo-subpanel-blur: 8px;
+  --demo-subpanel-radius: 3px;
+
+  /* Cartridge slot */
+  --demo-drop-bg: rgba(255, 255, 255, 0.025);
+  --demo-drop-border: rgba(255, 255, 255, 0.2);
+  --demo-drop-active-bg: rgba(var(--demo-accent2-rgb), 0.12);
+  --demo-drop-active-border: var(--demo-accent2);
+  --demo-drop-active-shadow: inset 0 0 24px rgba(var(--demo-accent2-rgb), 0.18);
+
+  /* Controller buttons */
+  --demo-picker-bg: #1d1d22;
+  --demo-picker-hover-bg: #2b2b33;
+  --demo-picker-border: rgba(255, 255, 255, 0.16);
+  --demo-picker-hover-border: rgba(255, 255, 255, 0.3);
+  --demo-picker-text: var(--demo-text);
+
+  --demo-pill-bg: rgba(var(--demo-accent-rgb), 0.1);
+  --demo-pill-border: rgba(var(--demo-accent-rgb), 0.55);
+  --demo-pill-text: #ff6b6f;
+  --demo-pill-shadow: inset 0 0 8px rgba(var(--demo-accent-rgb), 0.2);
+
+  --demo-file-info-bg: rgba(6, 6, 8, 0.86);
+  --demo-file-info-border: rgba(255, 255, 255, 0.12);
+  --demo-file-info-blur: 8px;
+
+  /* POWER switch */
+  --demo-launch-bg: linear-gradient(180deg, #f0353c 0%, #c11017 100%);
+  --demo-launch-text: #ffffff;
+
+  /* Local additions used by the page chrome below. */
+  --genesis-gold: #d6a327;
+  --genesis-bar-h: 3.25rem;
+}
+
+/* The template's scanline overlay is tuned for a light background; on black it
+   needs to darken, not lighten. */
+main:not(.running)::after {
+  background: linear-gradient(to bottom,
+      rgba(0, 0, 0, 0),
+      rgba(0, 0, 0, 0) 50%,
+      rgba(0, 0, 0, 0.35) 50%,
+      rgba(0, 0, 0, 0.35));
+  background-size: 100% 3px;
+}
+
+main {
+  padding-top: calc(var(--genesis-bar-h) + 2rem);
+}
+
+/* demo.css defaults the runtime viewport to 5:4; jgenesis renders 4:3
+   (manifest.video.aspect), so without this the picture is stretched. */
+.runtime,
+.runtime canvas {
+  aspect-ratio: 4 / 3;
+}
+
+.runtime canvas {
+  width: min(100vw, calc(100vh * 4 / 3));
+}
+
+/* Console faceplate: black bar, red wordmark, gold 16-BIT stamp. */
+.console-bar {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--genesis-bar-h);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 1.25rem;
+  background: linear-gradient(180deg, #0b0b0d 0%, #000 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(var(--demo-accent-rgb), 0.35), 0 6px 24px rgba(0, 0, 0, 0.7);
+  font-family: var(--demo-font-sans);
+}
+
+.console-bar .wordmark {
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.28em;
+  color: var(--demo-accent);
+  text-shadow: var(--demo-accent-glow);
+}
+
+.console-bar .badge {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--genesis-gold);
+  border-radius: 2px;
+  font-family: var(--demo-font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  color: var(--genesis-gold);
+  background: rgba(214, 163, 39, 0.08);
+}
+
+.console-bar .runtime-tag {
+  margin-left: auto;
+  font-family: var(--demo-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--demo-muted);
+}
+
+.console-bar .runtime-tag b {
+  color: var(--demo-accent2);
+  font-weight: 700;
+}
+
+/* Once the emulator owns the viewport, the faceplate gets out of the way. */
+body:has(main.running) .console-bar {
+  display: none;
+}
+
+body:has(main.running) main {
+  padding-top: 0;
+}
+
+@media (max-width: 480px) {
+  .console-bar .runtime-tag {
+    display: none;
+  }
+}

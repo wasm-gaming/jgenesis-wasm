@@ -3,63 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-  <title>JGenesis SDK - demo</title>
-  <style>
-    html, body {
-      margin: 0;
-      height: 100%;
-      background: #05070b;
-      color: #f4f8ff;
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-    }
-    #picker {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      z-index: 10;
-      text-align: center;
-      border: 2px dashed transparent;
-      transition: border-color .15s, background .15s;
-    }
-    #picker.hidden { display: none; }
-    #picker.dragover {
-      border-color: #43d4ff;
-      background: rgba(67, 212, 255, 0.08);
-    }
-    .canvas-container {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    canvas {
-      display: block;
-      max-width: 100%;
-      max-height: 100%;
-      outline: none;
-      image-rendering: pixelated;
-      object-fit: contain;
-      flex: 1 0 auto;
-    }
-    small {
-      color: #9eb1c9;
-      max-width: 34rem;
-      line-height: 1.4;
-    }
-    #runtime {
-      font-size: 0.8rem;
-      color: #9eb1c9;
-      border: 1px solid #2c3a4d;
-      border-radius: 999px;
-      padding: 4px 12px;
-    }
-    #runtime b { color: #43d4ff; font-weight: 600; }
-  </style>
+  <title>JGenesis SDK — demo</title>
+  <link rel="stylesheet" href="./demo/demo.css" />
+  <link rel="stylesheet" href="./theme.genesis.css" />
   <script type="importmap">
     {
       "imports": {
@@ -69,19 +15,17 @@
   </script>
 </head>
 <body>
-  <div id="picker">
-    <h2>JGenesis SDK demo</h2>
-    <p id="status">Drop a ROM or pick one to boot the engine.</p>
-    <p id="runtime"></p>
-    <input id="file" type="file" accept=".bin,.gen,.md,.smd,.sfc,.smc,.nes,.gb,.gba" hidden />
-    <small>
-      This demo boots jgenesis from runtime ROM bytes (no bundled game assets).
-      The core runtime comes from the generated files in <code>dist/jgenesis/</code>.
-    </small>
-  </div>
-  <div class="canvas-container">
-    <canvas id="canvas" tabindex="-1"></canvas>
-  </div>
+  <header class="console-bar">
+    <span class="wordmark">JGENESIS</span>
+    <span class="badge">16-BIT</span>
+    <!-- `runtime-tag`, not `runtime`: demo.css already owns `.runtime` for the
+         emulator viewport container. -->
+    <span class="runtime-tag">runtime <b id="runtime">…</b></span>
+  </header>
+
+  <main></main>
+
   <script type="module" src="./demo.js"></script>
+  <script type="module" src="./demo/demo.js"></script>
 </body>
 </html>
