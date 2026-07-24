@@ -28,6 +28,38 @@ engine.setInput('jgenesis');
 engine.destroy();
 ```
 
+## In-game settings menu
+
+jgenesis keeps its settings in a `WebConfigRef` that the emulator loop re-reads
+every frame, so they can all be changed without restarting the game. `load()`
+mounts a settings overlay over the viewport that does exactly that — **press
+Escape** to open it.
+
+- ↑ ↓ select · ← → change · Enter apply · Esc close (mouse works too)
+- Only the group for the system being emulated is shown, alongside the shared
+  video settings. The system comes from the ROM extension, falling back to the
+  `console` option.
+- Changes persist per `storageNamespace` in `localStorage` and are re-applied on
+  the next `load()`.
+- The catalog's defaults are applied to the config ref on load and are what
+  "Restore defaults" restores, so they override the wasm build's own built-ins
+  where the two differ — image filtering defaults to **nearest** here (crisp
+  pixel art) where jgenesis itself starts on linear.
+- Knobs the running WASM build doesn't expose are omitted rather than erroring,
+  so the menu degrades cleanly against an older or newer jgenesis revision.
+
+Pass `options: { escMenu: false }` to suppress it and drive the config yourself:
+
+```js
+engine.config.write('genesisM68kDivider', '5');  // overclock the 68000 to 140%
+engine.config.read('filterMode');                // 'Linear'
+engine.menu?.toggle();
+```
+
+Every knob is declared once in [src/jgenesis.options.ts](src/jgenesis.options.ts);
+the manifest's options schema, the defaults and the menu are all derived from
+that catalog, so a new row there is enough to expose a new setting.
+
 ## Build
 
 ```bash

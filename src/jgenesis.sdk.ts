@@ -1,6 +1,19 @@
 import type { AssetData, EngineConfig, EngineEvent, EngineInstance, InputPreset, KeyMap } from '@wasm-gaming/engine-specs';
 import { manifest } from './jgenesis.manifest.js';
-import { DEFAULT_JGENESIS_OPTIONS, type JgenesisOptions } from './jgenesis.options.js';
+import {
+  bindConfig,
+  createSettingsStore,
+  type JgenesisConfig,
+  type JgenesisOptionValue,
+} from './jgenesis.config.js';
+import { createMenu, type JgenesisMenu } from './jgenesis.menu.js';
+import {
+  DEFAULT_JGENESIS_OPTIONS,
+  JGENESIS_ENGINE_DEFAULTS,
+  JGENESIS_ENGINE_OPTIONS,
+  resolveSystem,
+  type JgenesisOptions,
+} from './jgenesis.options.js';
 
 export { manifest };
 
@@ -96,6 +109,10 @@ function ensureUpstreamUiStubs(): void {
 
 export type JgenesisInstance = EngineInstance & {
   storageNamespace: string;
+  /** Live handle on the emulator settings; writes apply to the running game. */
+  config: JgenesisConfig;
+  /** The in-game settings overlay, or `null` when `options.escMenu` is false. */
+  menu: JgenesisMenu | null;
 };
 
 export type JgenesisLoadConfig = EngineConfig & {
@@ -173,7 +190,14 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
   const runtimeFiles = defaultRuntimeFiles();
   const jsUrl = config.jsUrl ?? new URL(`./${runtimeFiles.js}`, import.meta.url).href;
   const wasmUrl = config.wasmUrl ?? new URL(`./${runtimeFiles.wasm}`, import.meta.url).href;
-  const opts = { ...DEFAULT_JGENESIS_OPTIONS, ...(config.options as JgenesisOptions | undefined) };
+  const requested = (config.options ?? {}) as JgenesisOptions;
+  const opts = { ...DEFAULT_JGENESIS_OPTIONS, ...requested };
+
+  // jgenesis selects which console to emulate from the ROM file's extension, so
+  // the real picked name has to win over the "game.bin" default. Hosts built on
+  // the shared demo template report it as `fileName`.
+  const romFileName = requested.romFileName ?? requested.fileName ?? opts.romFileName;
+  const system = resolveSystem(romFileName, opts.console);
 
   installAudioWorkletRedirect(jsUrl);
   ensureUpstreamUiStubs();
@@ -195,6 +219,38 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
   const channel = new mod.EmulatorChannel();
   const configRef = new mod.WebConfigRef();
 
+  const storageNamespace = normalizeStorageNamespace(config.storageNamespace);
+  const settingsStore = createSettingsStore(storageNamespace);
+  const engineConfig = bindConfig(configRef);
+
+  // This package's defaults, then the player's persisted tweaks, then anything
+  // the host asked for explicitly — a caller-supplied option is a deliberate
+  // choice and outranks the last session. Seeding the defaults is what makes
+  // them real: the wasm build boots with its own (linear filtering, notably),
+  // so a default that is never written is only a claim in the schema.
+  const initial: Record<string, JgenesisOptionValue> = {
+    ...JGENESIS_ENGINE_DEFAULTS,
+    ...settingsStore.load(),
+  };
+  for (const option of JGENESIS_ENGINE_OPTIONS) {
+    const value = requested[option.key];
+    if (typeof value === 'boolean' || typeof value === 'string') initial[option.key] = value;
+  }
+  for (const [key, value] of Object.entries(initial)) {
+    engineConfig.write(key, value);
+  }
+
+  const menu = opts.escMenu
+    ? createMenu({
+        mount: attachTo ?? canvas?.parentElement ?? document.body,
+        config: engineConfig,
+        system,
+        onReset: () => channel.request_reset(),
+        onChange: (values) => settingsStore.save(values),
+        onRestoreDefaults: () => settingsStore.clear(),
+      })
+    : null;
+
   // run_emulator consumes its arguments (wasm-bindgen moves them into Rust),
   // so pass clones to keep `channel` usable for later requests.
   mod.run_emulator(configRef.clone(), channel.clone()).catch((err: unknown) => {
@@ -203,7 +259,7 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
   });
 
   if (typeof channel.request_open_rom_bytes === 'function') {
-    channel.request_open_rom_bytes(romBytes, opts.romFileName);
+    channel.request_open_rom_bytes(romBytes, romFileName);
   } else {
     throw new Error(
       'jgenesis: runtime does not support request_open_rom_bytes; rebuild WASM with local patching enabled',
@@ -231,9 +287,13 @@ export async function load(config: JgenesisLoadConfig): Promise<JgenesisInstance
       }
     },
     destroy() {
-      // wasm-bindgen currently has no top-level shutdown hook for this runtime.
+      // wasm-bindgen currently has no top-level shutdown hook for this runtime,
+      // so this only reclaims the DOM and listeners the SDK itself installed.
+      menu?.destroy();
     },
-    storageNamespace: normalizeStorageNamespace(config.storageNamespace),
+    storageNamespace,
+    config: engineConfig,
+    menu,
   };
 }
 

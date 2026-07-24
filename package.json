@@ -27,7 +27,9 @@
   "files": [
     "dist/jgenesis/",
     "dist/manifest.json",
+    "src/jgenesis.config.ts",
     "src/jgenesis.manifest.ts",
+    "src/jgenesis.menu.ts",
     "src/jgenesis.options.ts",
     "src/jgenesis.sdk.ts",
     "README.md"
@@ -43,7 +45,7 @@
     }
   },
   "devDependencies": {
-    "@wasm-gaming/engine-specs": "^0.2.3",
+    "@wasm-gaming/engine-specs": "^0.2.4",
     "typescript": "^5.5.0"
   },
   "engineContract": "https://github.com/wasm-gaming/engine-specs",

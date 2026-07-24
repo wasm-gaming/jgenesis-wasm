@@ -69,17 +69,6 @@
   --genesis-bar-h: 3.25rem;
 }
 
-/* The template's scanline overlay is tuned for a light background; on black it
-   needs to darken, not lighten. */
-main:not(.running)::after {
-  background: linear-gradient(to bottom,
-      rgba(0, 0, 0, 0),
-      rgba(0, 0, 0, 0) 50%,
-      rgba(0, 0, 0, 0.35) 50%,
-      rgba(0, 0, 0, 0.35));
-  background-size: 100% 3px;
-}
-
 main {
   padding-top: calc(var(--genesis-bar-h) + 2rem);
 }
@@ -89,6 +78,7 @@ main {
 .runtime,
 .runtime canvas {
   aspect-ratio: 4 / 3;
+  outline: none !important;
 }
 
 .runtime canvas {
