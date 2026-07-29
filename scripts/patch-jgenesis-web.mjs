@@ -34,6 +34,76 @@ function patchConfigRs(text) {
     'config.rs request_open_rom_bytes',
   );
 
+  text = replaceOne(
+    text,
+    "use genesis_config::{\n    GenesisAspectRatio, GenesisButton, GenesisInputs, Opn2BusyBehavior, PcmInterpolation,\n    S32XColorTint, S32XPwmResampling, S32XVideoOut, S32XVoidColor,\n};\n",
+    "use genesis_config::{\n    GenesisAspectRatio, GenesisButton, GenesisInputs, GenesisRegion, Opn2BusyBehavior,\n    PcmInterpolation, S32XColorTint, S32XPwmResampling, S32XVideoOut, S32XVoidColor,\n};\n",
+    'config.rs import GenesisRegion',
+  );
+
+  text = replaceOne(
+    text,
+    "use smsgg_config::{GgAspectRatio, SmsAspectRatio, SmsGgButton, SmsGgInputs, SmsModel};\n",
+    "use smsgg_config::{GgAspectRatio, SmsAspectRatio, SmsGgButton, SmsGgInputs, SmsGgRegion, SmsModel};\n",
+    'config.rs import SmsGgRegion',
+  );
+
+  text = replaceOne(
+    text,
+    "#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]\npub struct SmsGgWebConfig {\n    timing_mode: TimingMode,\n    sms_aspect_ratio: SmsAspectRatio,\n    gg_aspect_ratio: GgAspectRatio,\n    remove_sprite_limit: bool,\n    sms_crop_vertical_border: bool,\n    sms_crop_left_border: bool,\n    fm_unit_enabled: bool,\n}\n",
+    "#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]\npub struct SmsGgWebConfig {\n    timing_mode: TimingMode,\n    forced_region: Option<SmsGgRegion>,\n    sms_aspect_ratio: SmsAspectRatio,\n    gg_aspect_ratio: GgAspectRatio,\n    remove_sprite_limit: bool,\n    sms_crop_vertical_border: bool,\n    sms_crop_left_border: bool,\n    fm_unit_enabled: bool,\n}\n",
+    'config.rs SmsGgWebConfig field',
+  );
+
+  text = replaceOne(
+    text,
+    "            timing_mode: TimingMode::default(),\n            sms_aspect_ratio: SmsAspectRatio::default(),\n            gg_aspect_ratio: GgAspectRatio::default(),\n            remove_sprite_limit: false,\n",
+    "            timing_mode: TimingMode::default(),\n            forced_region: None,\n            sms_aspect_ratio: SmsAspectRatio::default(),\n            gg_aspect_ratio: GgAspectRatio::default(),\n            remove_sprite_limit: false,\n",
+    'config.rs SmsGgWebConfig default forced_region',
+  );
+
+  text = replaceOne(
+    text,
+    "            forced_psg_version: None,\n            sms_aspect_ratio: self.sms_aspect_ratio,\n            gg_aspect_ratio: self.gg_aspect_ratio,\n            forced_region: None,\n            remove_sprite_limit: self.remove_sprite_limit,\n",
+    "            forced_psg_version: None,\n            sms_aspect_ratio: self.sms_aspect_ratio,\n            gg_aspect_ratio: self.gg_aspect_ratio,\n            forced_region: self.forced_region,\n            remove_sprite_limit: self.remove_sprite_limit,\n",
+    'config.rs SmsGgWebConfig forced_region to_emulator_config',
+  );
+
+  text = replaceOne(
+    text,
+    "#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]\npub struct GenesisWebConfig {\n    aspect_ratio: GenesisAspectRatio,\n    remove_sprite_limits: bool,\n    non_linear_color_scale: bool,\n    lpf_enabled: bool,\n    render_vertical_border: bool,\n    render_horizontal_border: bool,\n    m68k_divider: u64,\n}\n",
+    "#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]\npub struct GenesisWebConfig {\n    aspect_ratio: GenesisAspectRatio,\n    forced_region: Option<GenesisRegion>,\n    remove_sprite_limits: bool,\n    non_linear_color_scale: bool,\n    lpf_enabled: bool,\n    render_vertical_border: bool,\n    render_horizontal_border: bool,\n    m68k_divider: u64,\n}\n",
+    'config.rs GenesisWebConfig field',
+  );
+
+  text = replaceOne(
+    text,
+    "            aspect_ratio: GenesisAspectRatio::default(),\n            remove_sprite_limits: false,\n            non_linear_color_scale: true,\n            lpf_enabled: true,\n",
+    "            aspect_ratio: GenesisAspectRatio::default(),\n            forced_region: None,\n            remove_sprite_limits: false,\n            non_linear_color_scale: true,\n            lpf_enabled: true,\n",
+    'config.rs GenesisWebConfig default forced_region',
+  );
+
+  text = replaceOne(
+    text,
+    "        GenesisEmulatorConfig {\n            forced_timing_mode: None,\n            forced_region: None,\n            allow_opposing_joypad_directions: false,\n",
+    "        GenesisEmulatorConfig {\n            forced_timing_mode: None,\n            forced_region: self.forced_region,\n            allow_opposing_joypad_directions: false,\n",
+    'config.rs GenesisWebConfig forced_region to_emulator_config',
+  );
+
+  text = replaceOne(
+    text,
+    "    pub fn sms_timing_mode(&self) -> String {\n        self.borrow().smsgg.timing_mode.to_string()\n    }\n\n    pub fn set_sms_timing_mode(&self, timing_mode: &str) {\n        let Ok(timing_mode) = timing_mode.parse() else { return };\n        self.borrow_mut().smsgg.timing_mode = timing_mode;\n    }\n",
+    "    pub fn sms_timing_mode(&self) -> String {\n        self.borrow().smsgg.timing_mode.to_string()\n    }\n\n    pub fn set_sms_timing_mode(&self, timing_mode: &str) {\n        let Ok(timing_mode) = timing_mode.parse() else { return };\n        self.borrow_mut().smsgg.timing_mode = timing_mode;\n    }\n\n    pub fn sms_region(&self) -> String {\n        self.borrow().smsgg.forced_region.map_or_else(|| String::from(\"Auto\"), |region| region.to_string())\n    }\n\n    pub fn set_sms_region(&self, region: &str) {\n        self.borrow_mut().smsgg.forced_region = match region {\n            \"Auto\" => None,\n            other => other.parse().ok(),\n        };\n    }\n",
+    'config.rs sms_region accessors',
+  );
+
+  text = replaceOne(
+    text,
+    "    pub fn set_genesis_aspect_ratio(&self, aspect_ratio: &str) {\n        let Ok(aspect_ratio) = aspect_ratio.parse() else { return };\n        self.borrow_mut().genesis.aspect_ratio = aspect_ratio;\n    }\n\n    pub fn genesis_remove_sprite_limits(&self) -> bool {\n",
+    "    pub fn set_genesis_aspect_ratio(&self, aspect_ratio: &str) {\n        let Ok(aspect_ratio) = aspect_ratio.parse() else { return };\n        self.borrow_mut().genesis.aspect_ratio = aspect_ratio;\n    }\n\n    pub fn genesis_region(&self) -> String {\n        self.borrow().genesis.forced_region.map_or_else(|| String::from(\"Auto\"), |region| region.to_string())\n    }\n\n    pub fn set_genesis_region(&self, region: &str) {\n        self.borrow_mut().genesis.forced_region = match region {\n            \"Auto\" => None,\n            \"Americas\" => Some(GenesisRegion::Americas),\n            \"Japan\" => Some(GenesisRegion::Japan),\n            \"Europe\" => Some(GenesisRegion::Europe),\n            _ => None,\n        };\n    }\n\n    pub fn genesis_remove_sprite_limits(&self) -> bool {\n",
+    'config.rs genesis_region accessors',
+  );
+
   return text;
 }
 

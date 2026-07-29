@@ -89,6 +89,22 @@ export const JGENESIS_OPTION_GROUPS: JgenesisOptionGroup[] = [
     system: 'genesis',
     options: [
       {
+        key: 'genesisRegion',
+        label: 'Region',
+        description:
+          'Genesis hardware region. Auto detects from cartridge header; Americas and Japan use NTSC timing, Europe uses PAL timing.',
+        type: 'enum',
+        default: 'Auto',
+        values: [
+          { value: 'Auto', label: 'Auto' },
+          { value: 'Americas', label: 'Americas (NTSC)' },
+          { value: 'Japan', label: 'Japan (NTSC)' },
+          { value: 'Europe', label: 'Europe (PAL)' },
+        ],
+        get: 'genesis_region',
+        set: 'set_genesis_region',
+      },
+      {
         key: 'genesisAspectRatio',
         label: 'Aspect ratio',
         description: 'Display aspect ratio for Genesis / Sega CD / 32X output.',
@@ -184,6 +200,20 @@ export const JGENESIS_OPTION_GROUPS: JgenesisOptionGroup[] = [
         ],
         get: 'sms_timing_mode',
         set: 'set_sms_timing_mode',
+      },
+      {
+        key: 'smsRegion',
+        label: 'Hardware region',
+        description: 'Master System / Game Gear hardware region. Auto detects from the cartridge header.',
+        type: 'enum',
+        default: 'Auto',
+        values: [
+          { value: 'Auto', label: 'Auto' },
+          { value: 'International', label: 'International' },
+          { value: 'Domestic', label: 'Domestic' },
+        ],
+        get: 'sms_region',
+        set: 'set_sms_region',
       },
       {
         key: 'smsAspectRatio',
@@ -380,8 +410,10 @@ export interface JgenesisOptions extends JgenesisEngineOptions {
   fileName?: string;
   /** Console target hint used by host-side UI. */
   console?: 'megadrive' | 'snes' | 'sms' | 'gg' | 'nes' | 'gba';
-  /** Genesis timing mode hint. */
-  genesisTimingMode?: 'auto' | 'ntsc' | 'pal';
+  /** Genesis hardware region override used by host-side UI. */
+  genesisRegion?: 'Auto' | 'Americas' | 'Japan' | 'Europe';
+  /** Master System / Game Gear hardware region override used by host-side UI. */
+  smsRegion?: 'Auto' | 'International' | 'Domestic';
   /** Show the built-in in-game settings menu on ESC. Defaults to `true`. */
   escMenu?: boolean;
 }
@@ -389,10 +421,13 @@ export interface JgenesisOptions extends JgenesisEngineOptions {
 export const DEFAULT_JGENESIS_OPTIONS = {
   romFileName: 'game.bin',
   console: 'megadrive',
-  genesisTimingMode: 'auto',
+  genesisRegion: 'Auto',
+  smsRegion: 'Auto',
   escMenu: true,
   ...JGENESIS_ENGINE_DEFAULTS,
-} as const as Required<Pick<JgenesisOptions, 'romFileName' | 'console' | 'genesisTimingMode' | 'escMenu'>> &
+} as const as Required<
+  Pick<JgenesisOptions, 'romFileName' | 'console' | 'genesisRegion' | 'smsRegion' | 'escMenu'>
+> &
   Record<string, boolean | string>;
 
 /** ROM extension → emulated system, mirroring jgenesis' own dispatch. */
