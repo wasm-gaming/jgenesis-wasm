@@ -709,7 +709,7 @@ function mountTarget(box: HTMLElement): HTMLElement {
 
 export class JgenesisSDK extends EngineSDKBase<JgenesisPayloads> {
   static readonly id = ENGINE_ID;
-  static readonly version = '0.2.0';
+  static readonly version = '0.1.1';
   static readonly name = 'jgenesis';
   static readonly description =
     'jgenesis, the multi-system emulator by James Groth (Mega Drive / Genesis, Sega CD, 32X, Master System, Game Gear, SNES, GBA), compiled to WebAssembly. Needs WebGPU. Ships no games.';
