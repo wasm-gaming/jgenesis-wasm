@@ -3,62 +3,99 @@
 [![Build](https://github.com/wasm-gaming/jgenesis-wasm/actions/workflows/build.yml/badge.svg)](https://github.com/wasm-gaming/jgenesis-wasm/actions/workflows/build.yml)
 [![Release](https://github.com/wasm-gaming/jgenesis-wasm/actions/workflows/release.yml/badge.svg)](https://github.com/wasm-gaming/jgenesis-wasm/actions/workflows/release.yml)
 
-jgenesis (Rust, wasm-bindgen web frontend) packaged as a wasm-gaming engine SDK.
+jgenesis (Rust, wasm-bindgen web frontend) packaged as a wasm-gaming engine SDK: Mega Drive /
+Genesis, Master System, Game Gear, SNES and Game Boy Advance. **Needs WebGPU** (jgenesis renders
+with wgpu). Ships no games.
 
-This subproject follows the same engine-package approach used by rsdkv3 and rsdkv4:
-- typed `manifest`
-- typed `options`
-- `load(config)` engine SDK surface
-- Makefile-driven build (`build-sdk`, `build-wasm`, `preview`)
-
-## Contract surface
+## Contract surface (engine-specs 1.0)
 
 ```js
-import { manifest, load } from '@wasm-gaming/jgenesis-wasm';
+import JgenesisSDK from '@wasm-gaming/jgenesis-wasm';
 
-const engine = await load({
-  canvasEl,          // or attachTo: someContainerEl
-  assets: { rom: romBytes },
-  options: { romFileName: 'sonic-1.bin' },
-  onEvent: (e) => { /* ready | error */ },
-});
+const play = await new JgenesisSDK()
+  .options({ romFileName: 'sonic.md' })        // the extension picks the system
+  .assets({ rom: () => file.arrayBuffer() })
+  .storage({ namespace: 'sonic' })             // OPFS jgenesis/sonic/
+  .on('error', ({ detail }) => console.error(detail))
+  .mount(document.querySelector('#stage'))
+  .start();
 
-engine.reset();
-engine.setInput('jgenesis');
-engine.destroy();
+play.pause('host'); play.resume('host');
+await play.restart();
+play.settings.write('genesisM68kDivider', '5'); // live settings (see below)
+await play.close();
 ```
+
+- One game per page: the wasm module runs one emulator loop and owns `#jgenesis-wasm`.
+- `romFileName` names the system; without it, `console` (`megadrive` | `snes` | `sms` | `gg` |
+  `gba`) gives it.
+- The SDK is self-contained ESM: `engine-specs.js` ships beside it and is imported relatively.
+
+### Save states
+
+```js
+await play.states.save(0, { thumbnail: await play.snapshot() });
+play.states.load(0);           // true when the running game took it
+play.states.list();            // [{ slot, info: { savedAt, locked, thumbnail } }, …]
+await play.states.copy(0, 9); await play.states.lock(0, true); await play.states.remove(0);
+```
+
+Slots 0–3 are the player's, 9 is the app's suspend point. Each slot is `slot_N.state` (the
+emulator's own bincode state, as the native frontend's slots) + `slot_N.png` (+ `slot_N.lock`)
+in OPFS `jgenesis/<namespace>/`. Upstream's web frontend has no states: the build patch adds
+`request_save_state()` / `take_saved_state()` / `request_load_state(bytes)` /
+`take_load_result()` and `set_paused()` to the emulator channel (see
+[scripts/patch-jgenesis-web.mjs](scripts/patch-jgenesis-web.mjs)).
+
+`snapshot()` copies the canvas in the task that renders the next frame (right after its
+`GPUQueue.submit()`): a WebGPU canvas drops its picture once presented, so a later read is black.
+
+### Gamepads and the touch pad
+
+jgenesis-web reads the keyboard only. The SDK reads `navigator.getGamepads()` every frame and
+presses jgenesis' default key bindings for the running system with `KeyboardEvent`s on its canvas,
+so physical pads and the engine-specs touch pad (which exposes itself as a standard gamepad) both
+play. Standard-pad mapping:
+
+| System | Buttons |
+|---|---|
+| Mega Drive | A ← 0 · B ← 1 · C ← 5 · X ← 2 · Y ← 3 · Z ← 4 · Mode ← 8 · Start ← 9 |
+| SNES | B ← 0 · A ← 1 · Y ← 2 · X ← 3 · L ← 4 · R ← 5 · Select ← 8 · Start ← 9 |
+| SMS / Game Gear | 1 ← 0 · 2 ← 1 · Pause/Start ← 9 |
+| GBA | A ← 0 · B ← 1 · L ← 4 · R ← 5 · Select ← 8 · Start ← 9 |
+
+The d-pad (12–15) maps to the arrow keys. Keys are released whenever the game pauses.
+
+## The engine app
+
+`@wasm-gaming/jgenesis-wasm/app` is the wasm-gaming engine app (the same as BlastEm's, FBNeo's
+and snes9x's): a suspend point on start, Select+Start / Escape / the touch pad's pause button
+open the pause menu with the four slots in it (Cargar focused), Reiniciar, Volver al lanzador.
 
 ## In-game settings menu
 
 jgenesis keeps its settings in a `WebConfigRef` that the emulator loop re-reads
-every frame, so they can all be changed without restarting the game. `load()`
-mounts a settings overlay over the viewport that does exactly that — **press
-Escape** to open it.
+every frame, so they can all be changed without restarting the game. With
+`options: { escMenu: true }` (the default when the SDK is used on its own) the SDK
+mounts a settings overlay over the viewport — **press Escape** to open it. The
+engine app turns it off (its Escape opens the pause menu).
 
 - ↑ ↓ select · ← → change · Enter apply · Esc close (mouse works too)
 - Only the group for the system being emulated is shown, alongside the shared
-  video settings. The system comes from the ROM extension, falling back to the
-  `console` option.
-- Changes persist per `storageNamespace` in `localStorage` and are re-applied on
-  the next `load()`.
-- The catalog's defaults are applied to the config ref on load and are what
-  "Restore defaults" restores, so they override the wasm build's own built-ins
-  where the two differ — image filtering defaults to **nearest** here (crisp
-  pixel art) where jgenesis itself starts on linear.
-- Knobs the running WASM build doesn't expose are omitted rather than erroring,
-  so the menu degrades cleanly against an older or newer jgenesis revision.
-
-Pass `options: { escMenu: false }` to suppress it and drive the config yourself:
+  video settings.
+- Changes persist per storage namespace in `localStorage` and are re-applied on
+  the next start.
+- Image filtering defaults to **nearest** here (crisp pixel art) where jgenesis
+  itself starts on linear.
+- Knobs the running WASM build doesn't expose are omitted rather than erroring.
 
 ```js
-engine.config.write('genesisM68kDivider', '5');  // overclock the 68000 to 140%
-engine.config.read('filterMode');                // 'Linear'
-engine.menu?.toggle();
+play.settings.write('genesisM68kDivider', '5');  // overclock the 68000 to 140%
+play.settings.read('filterMode');                // 'Nearest'
+play.menu?.toggle();
 ```
 
-Every knob is declared once in [src/jgenesis.options.ts](src/jgenesis.options.ts);
-the manifest's options schema, the defaults and the menu are all derived from
-that catalog, so a new row there is enough to expose a new setting.
+Every knob is declared once in [src/jgenesis.options.ts](src/jgenesis.options.ts).
 
 ## Build
 
@@ -84,33 +121,12 @@ make preview      # serves dist/ with COOP/COEP
   - `dist/original/pkg/`
   - `dist/original/js/`
 
-Then `build-demo` assembles this package's demo and writes:
+Then `build-sdk` compiles the SDK, ships `engine-specs.js` beside it, copies the app to
+`dist/jgenesis/app/` and the no-build demo page to `dist/index.html`.
 
-- `dist/demo/` — the shared template copied verbatim from
-  `@wasm-gaming/engine-specs/demo` (launcher, drop zones, OPFS asset
-  persistence, checksums)
-- `dist/index.html` — the page shell, which loads the template and hands it the
-  jgenesis SDK via `window.SDK`
-- `dist/theme.genesis.css` — the Genesis skin (see below)
-- `dist/demo.js` — compiled from `src/demo/demo.ts`
-
-`build-demo` will not overwrite an existing upstream `dist/original/index.html`.
-
-### Demo theming
-
-The template renders into shadow DOM and reads `--demo-*` custom properties,
-which inherit across shadow boundaries. `src/demo/theme.genesis.css` therefore
-re-skins the entire UI by redeclaring that token set — black console plastic,
-Genesis red and SEGA blue accents, hard 3–4px corners — without forking any
-template file. Rules after the `:root` block only touch page chrome this repo
-owns (the console faceplate header) plus the runtime viewport aspect ratio,
-which the template defaults to 5:4 while jgenesis renders 4:3.
-
-Re-pulling a newer template is just `npm update @wasm-gaming/engine-specs && make build-demo`.
-
-If `build-demo` runs before `build-wasm`, and `dist/index.html` already exists, it may still be preserved at:
-
-- `dist/original/index.html`
+The upstream revision is pinned (`JGENESIS_REV` in
+[scripts/build-jgenesis.sh](scripts/build-jgenesis.sh)): the patch anchors on its source, so a
+newer upstream needs the anchors checked.
 
 ## Notes
 

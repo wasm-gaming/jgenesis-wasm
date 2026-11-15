@@ -85,8 +85,8 @@ function patchConfigRs(text) {
 
   text = replaceOne(
     text,
-    "        GenesisEmulatorConfig {\n            forced_timing_mode: None,\n            forced_region: None,\n            allow_opposing_joypad_directions: false,\n",
-    "        GenesisEmulatorConfig {\n            forced_timing_mode: None,\n            forced_region: self.forced_region,\n            allow_opposing_joypad_directions: false,\n",
+    "            sega_32x,\n            forced_region: None,\n            pretend_to_be_region: None,\n",
+    "            sega_32x,\n            forced_region: self.forced_region,\n            pretend_to_be_region: None,\n",
     'config.rs GenesisWebConfig forced_region to_emulator_config',
   );
 
@@ -100,7 +100,7 @@ function patchConfigRs(text) {
   text = replaceOne(
     text,
     "    pub fn set_genesis_aspect_ratio(&self, aspect_ratio: &str) {\n        let Ok(aspect_ratio) = aspect_ratio.parse() else { return };\n        self.borrow_mut().genesis.aspect_ratio = aspect_ratio;\n    }\n\n    pub fn genesis_remove_sprite_limits(&self) -> bool {\n",
-    "    pub fn set_genesis_aspect_ratio(&self, aspect_ratio: &str) {\n        let Ok(aspect_ratio) = aspect_ratio.parse() else { return };\n        self.borrow_mut().genesis.aspect_ratio = aspect_ratio;\n    }\n\n    pub fn genesis_region(&self) -> String {\n        self.borrow().genesis.forced_region.map_or_else(|| String::from(\"Auto\"), |region| region.to_string())\n    }\n\n    pub fn set_genesis_region(&self, region: &str) {\n        self.borrow_mut().genesis.forced_region = match region {\n            \"Auto\" => None,\n            \"Americas\" => Some(GenesisRegion::Americas),\n            \"Japan\" => Some(GenesisRegion::Japan),\n            \"Europe\" => Some(GenesisRegion::Europe),\n            _ => None,\n        };\n    }\n\n    pub fn genesis_remove_sprite_limits(&self) -> bool {\n",
+    "    pub fn set_genesis_aspect_ratio(&self, aspect_ratio: &str) {\n        let Ok(aspect_ratio) = aspect_ratio.parse() else { return };\n        self.borrow_mut().genesis.aspect_ratio = aspect_ratio;\n    }\n\n    pub fn genesis_region(&self) -> String {\n        String::from(match self.borrow().genesis.forced_region {\n            None => \"Auto\",\n            Some(GenesisRegion::NtscUs) => \"Americas\",\n            Some(GenesisRegion::NtscJp) => \"Japan\",\n            Some(GenesisRegion::Pal) => \"Europe\",\n        })\n    }\n\n    pub fn set_genesis_region(&self, region: &str) {\n        self.borrow_mut().genesis.forced_region = match region {\n            \"Auto\" => None,\n            \"Americas\" => Some(GenesisRegion::NtscUs),\n            \"Japan\" => Some(GenesisRegion::NtscJp),\n            \"Europe\" => Some(GenesisRegion::Pal),\n            _ => None,\n        };\n    }\n\n    pub fn genesis_remove_sprite_limits(&self) -> bool {\n",
     'config.rs genesis_region accessors',
   );
 
@@ -360,6 +360,165 @@ function patchLibRs(text) {
   return text;
 }
 
+// Save states for the web frontend. The cores already serialise themselves
+// (`EmulatorTrait::to_save_state` / `load_state`, bincode — what the native
+// driver writes to its slot files); upstream's web frontend just never wired
+// them. Two commands on the channel and a mailbox the SDK polls: the emulator
+// is only touched from the event loop, between frames.
+function patchConfigRsStates(text) {
+  text = replaceOne(
+    text,
+    "    ConfigureInput { name: String },\n}\n",
+    "    ConfigureInput { name: String },\n    SaveState,\n    LoadState { bytes: Vec<u8> },\n    Pause,\n}\n",
+    'config.rs EmulatorCommand::SaveState / LoadState',
+  );
+  text = replaceOne(
+    text,
+    "    commands: Rc<RefCell<VecDeque<EmulatorCommand>>>,\n    current_file_name: Rc<RefCell<String>>,\n}\n",
+    "    commands: Rc<RefCell<VecDeque<EmulatorCommand>>>,\n    current_file_name: Rc<RefCell<String>>,\n    saved_state: Rc<RefCell<Option<Vec<u8>>>>,\n    load_result: Rc<RefCell<Option<bool>>>,\n    paused: Rc<std::cell::Cell<bool>>,\n}\n",
+    'config.rs EmulatorChannel state mailbox',
+  );
+  // What JS calls goes in the #[wasm_bindgen] impl (anchored on current_file_name, which
+  // only that impl has); the loop's side stays crate-internal, beside pop_command.
+  text = replaceOne(
+    text,
+    "    pub fn current_file_name(&self) -> String {",
+    `    /// Ask for the running game's state; collect it with \`take_saved_state()\`.
+    pub fn request_save_state(&self) {
+        self.saved_state.borrow_mut().take();
+        self.commands.borrow_mut().push_back(EmulatorCommand::SaveState);
+    }
+
+    /// The state asked for, once the loop has written it (empty when there was no game).
+    pub fn take_saved_state(&self) -> Option<Vec<u8>> {
+        self.saved_state.borrow_mut().take()
+    }
+
+    /// Load a state into the running game; the outcome with \`take_load_result()\`.
+    pub fn request_load_state(&self, bytes: Vec<u8>) {
+        self.load_result.borrow_mut().take();
+        self.commands.borrow_mut().push_back(EmulatorCommand::LoadState { bytes });
+    }
+
+    pub fn take_load_result(&self) -> Option<bool> {
+        self.load_result.borrow_mut().take()
+    }
+
+    /// Freeze emulation (no frame runs, sound stops); commands — save / load state —
+    /// are still served while paused.
+    pub fn set_paused(&self, paused: bool) {
+        if paused && !self.paused.get() {
+            self.commands.borrow_mut().push_back(EmulatorCommand::Pause);
+        }
+        self.paused.set(paused);
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused.get()
+    }
+
+    pub fn current_file_name(&self) -> String {`,
+    'config.rs EmulatorChannel save/load state methods (JS side)',
+  );
+  text = replaceOne(
+    text,
+    "    pub fn pop_command(&self) -> Option<EmulatorCommand> {",
+    `    pub(crate) fn put_saved_state(&self, bytes: Vec<u8>) {
+        *self.saved_state.borrow_mut() = Some(bytes);
+    }
+
+    pub(crate) fn put_load_result(&self, ok: bool) {
+        *self.load_result.borrow_mut() = Some(ok);
+    }
+
+    pub fn pop_command(&self) -> Option<EmulatorCommand> {`,
+    'config.rs EmulatorChannel save/load state mailbox (loop side)',
+  );
+  return text;
+}
+
+function patchLibRsStates(text) {
+  text = replaceOne(
+    text,
+    "    fn target_fps(&self) -> f64 {\n        match self {\n            Self::None(..) => 30.0,",
+    `    fn save_state_bytes(&self) -> Vec<u8> {
+        macro_rules! encode {
+            ($emulator:expr) => {
+                bincode::encode_to_vec($emulator.to_save_state(), bincode_config!()).unwrap_or_default()
+            };
+        }
+        match self {
+            Self::None(..) => Vec::new(),
+            Self::SmsGg(emulator, ..) => encode!(emulator),
+            Self::Genesis(emulator, ..) => encode!(emulator),
+            Self::Snes(emulator, ..) => encode!(emulator),
+            Self::Gba(emulator, ..) => encode!(emulator),
+        }
+    }
+
+    fn load_state_bytes(&mut self, bytes: &[u8]) -> bool {
+        macro_rules! decode {
+            ($emulator:expr) => {
+                match bincode::decode_from_slice(bytes, bincode_config!()) {
+                    Ok((state, _)) => {
+                        $emulator.load_state(state);
+                        true
+                    }
+                    Err(err) => {
+                        log::error!("Unable to load save state: {err}");
+                        false
+                    }
+                }
+            };
+        }
+        match self {
+            Self::None(..) => false,
+            Self::SmsGg(emulator, ..) => decode!(emulator),
+            Self::Genesis(emulator, ..) => decode!(emulator),
+            Self::Snes(emulator, ..) => decode!(emulator),
+            Self::Gba(emulator, ..) => decode!(emulator),
+        }
+    }
+
+    fn target_fps(&self) -> f64 {
+        match self {
+            Self::None(..) => 30.0,`,
+    'lib.rs Emulator save/load state bytes',
+  );
+  text = replaceOne(
+    text,
+    "                EmulatorCommand::ConfigureInput { name } => {",
+    `                EmulatorCommand::SaveState => {
+                    let bytes = self.emulator.save_state_bytes();
+                    self.emulator_channel.put_saved_state(bytes);
+                }
+                EmulatorCommand::LoadState { bytes } => {
+                    let ok = self.emulator.load_state_bytes(&bytes);
+                    self.emulator_channel.put_load_result(ok);
+                }
+                EmulatorCommand::Pause => {
+                    self.audio_output.suspend();
+                }
+                EmulatorCommand::ConfigureInput { name } => {`,
+    'lib.rs drain_emulator_channel SaveState / LoadState',
+  );
+  text = replaceOne(
+    text,
+    "        if !self.queued_frame.queued {\n            // No frame queued; run emulator until it renders the next frame",
+    `        if self.emulator_channel.is_paused() {
+            // Paused by the SDK: no frame emulated, but commands are still served.
+            self.drain_emulator_channel(event_loop_proxy);
+            elwt.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16)));
+            return;
+        }
+
+        if !self.queued_frame.queued {
+            // No frame queued; run emulator until it renders the next frame`,
+    'lib.rs handle_about_to_wait pause',
+  );
+  return text;
+}
+
 function patchFile(filePath, patcher) {
   const before = fs.readFileSync(filePath, 'utf8');
   const after = patcher(before);
@@ -376,8 +535,8 @@ function main() {
   const libRs = path.join(repoRoot, 'frontend/jgenesis-web/src/lib.rs');
   const cargoToml = path.join(repoRoot, 'frontend/jgenesis-web/Cargo.toml');
 
-  patchFile(configRs, patchConfigRs);
-  patchFile(libRs, patchLibRs);
+  patchFile(configRs, (text) => patchConfigRsStates(patchConfigRs(text)));
+  patchFile(libRs, (text) => patchLibRsStates(patchLibRs(text)));
   patchFile(cargoToml, patchCargoToml);
 
   fs.writeFileSync(

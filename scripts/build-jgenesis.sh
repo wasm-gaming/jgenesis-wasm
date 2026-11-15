@@ -31,7 +31,13 @@ mkdir -p "$TARGET_DIR"
 mkdir -p "$ORIGINAL_DIR"
 
 echo "Cloning jsgroth/jgenesis..."
-git clone --depth=1 https://github.com/jsgroth/jgenesis.git "$WORK_DIR"
+# Pinned: every patch in patch-jgenesis-web.mjs is checked against this revision.
+# An unpinned clone of master had drifted past them by 2026-11 (and upstream's web
+# frontend did not build for a while after its CD / 32X refactor); 237545e is master of
+# 2026-11-14, where the web frontend builds and every patch lands.
+JGENESIS_REV="${JGENESIS_REV:-237545e}"
+git clone --shallow-since=2026-11-01 https://github.com/jsgroth/jgenesis.git "$WORK_DIR"
+git -C "$WORK_DIR" checkout --quiet "$JGENESIS_REV"
 
 echo "Applying local jgenesis-web ROM-bytes patch..."
 node "$PATCH_SCRIPT" "$WORK_DIR"

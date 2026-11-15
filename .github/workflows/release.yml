@@ -55,7 +55,7 @@ jobs:
           make typecheck
           make test
 
-      - name: Build (SDK + WASM + manifest)
+      - name: Build (SDK + WASM)
         run: make build
 
       - name: Configure Git

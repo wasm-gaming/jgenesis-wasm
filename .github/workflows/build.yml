@@ -26,7 +26,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Build SDK (TypeScript + manifest + demo shell)
+      - name: Build SDK (TypeScript + contract runtime + app + demo page)
         run: make build-sdk
       - uses: actions/upload-artifact@v4
         with:
@@ -75,11 +75,11 @@ jobs:
             dist/jgenesis/jgenesis.sdk.d.ts
             dist/jgenesis/jgenesis.options.js
             dist/jgenesis/jgenesis.options.d.ts
-            dist/jgenesis/jgenesis.manifest.js
-            dist/jgenesis/jgenesis.manifest.d.ts
-            dist/manifest.json
+            dist/jgenesis/jgenesis.single.js
+            dist/jgenesis/engine-specs.js
+            dist/jgenesis/app/app.js
+            dist/jgenesis/app/app.css
             dist/index.html
-            dist/demo.js
 
   pages:
     needs: [sdk, wasm]

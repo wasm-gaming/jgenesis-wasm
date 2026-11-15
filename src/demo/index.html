@@ -1,31 +1,75 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <!-- The threaded build needs cross-origin isolation; on a static host this worker adds COOP/COEP. -->
+  <script src="./vendor/coi-serviceworker.min.js"></script>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-  <title>JGenesis SDK — demo</title>
-  <link rel="stylesheet" href="./demo/demo.css" />
-  <link rel="stylesheet" href="./theme.genesis.css" />
-  <script type="importmap">
-    {
-      "imports": {
-        "@wasm-gaming/jgenesis-wasm": "./jgenesis/jgenesis.sdk.js"
-      }
-    }
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>jgenesis WASM</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    html, body { margin: 0; height: 100%; background: #000; color: #e2e8f0; }
+    body { display: grid; grid-template-rows: 1fr auto; }
+    #stage { display: grid; place-items: center; min-height: 0; }
+    #bar { display: flex; gap: .75rem; align-items: center; justify-content: center; padding: .75rem; background: #111; flex-wrap: wrap; }
+    button { font: inherit; padding: .4rem 1rem; background: #222; color: inherit; border: 1px solid #444; border-radius: 6px; cursor: pointer; }
+    #status { color: #94a3b8; font-size: .85rem; }
+    #drop { position: fixed; inset: 0; display: none; place-items: center; background: #000c; font-size: 1.4rem; }
+    body.dragging #drop { display: grid; }
+  </style>
 </head>
 <body>
-  <header class="console-bar">
-    <span class="wordmark">JGENESIS</span>
-    <span class="badge">16-BIT</span>
-    <!-- `runtime-tag`, not `runtime`: demo.css already owns `.runtime` for the
-         emulator viewport container. -->
-    <span class="runtime-tag">runtime <b id="runtime">…</b></span>
-  </header>
+  <div id="stage"></div>
+  <div id="bar">
+    <input type="file" id="rom" accept=".md,.bin,.gen,.smd,.32x,.sms,.gg,.sfc,.smc,.gba" />
+    <button id="pause" disabled>Pause</button>
+    <button id="reset" disabled>Reset</button>
+    <span id="status">Pick or drop a ROM (Mega Drive, Master System, Game Gear, SNES, GBA). Needs WebGPU.</span>
+  </div>
+  <div id="drop">Drop the ROM</div>
 
-  <main></main>
+  <script type="module">
+    // No build and no import map: the SDK is self-contained (it carries the
+    // contract's runtime beside it). One game per page — reload for another.
+    import JgenesisSDK from './jgenesis/jgenesis.sdk.js';
 
-  <script type="module" src="./demo.js"></script>
-  <script type="module" src="./demo/demo.js"></script>
+    const status = document.querySelector('#status');
+    let play = null;
+
+    async function boot(file) {
+      if (play) { location.reload(); return; }
+      status.textContent = `Loading ${file.name}…`;
+      try {
+        play = await new JgenesisSDK()
+          .options({ romFileName: file.name })
+          .assets({ rom: () => file.arrayBuffer() })
+          .storage({ namespace: file.name.replace(/\.[^.]+$/, '') })
+          .on('saves', ({ detail }) => (status.textContent = `Saved ${detail.files.join(', ')} → ${play.storagePath}/`))
+          .on('error', ({ detail }) => (status.textContent = `Error: ${detail.message}`))
+          .mount(document.querySelector('#stage'))
+          .start();
+        status.textContent = `${file.name} — saves in OPFS ${play.storagePath}/`;
+        for (const b of document.querySelectorAll('button')) b.disabled = false;
+        document.querySelector('#stage canvas').focus();
+      } catch (e) {
+        status.textContent = `Error: ${e.message}`;
+      }
+    }
+
+    document.querySelector('#rom').addEventListener('change', (e) => e.target.files[0] && boot(e.target.files[0]));
+    document.querySelector('#pause').addEventListener('click', (e) => {
+      if (play.pausedBy) { play.resume('demo'); e.target.textContent = 'Pause'; }
+      else { play.pause('demo'); e.target.textContent = 'Resume'; }
+    });
+    document.querySelector('#reset').addEventListener('click', () => play.restart());
+    addEventListener('dragover', (e) => { e.preventDefault(); document.body.classList.add('dragging'); });
+    addEventListener('dragleave', () => document.body.classList.remove('dragging'));
+    addEventListener('drop', (e) => {
+      e.preventDefault();
+      document.body.classList.remove('dragging');
+      const file = e.dataTransfer.files[0];
+      if (file) boot(file);
+    });
+  </script>
 </body>
 </html>

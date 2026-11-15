@@ -1,4 +1,4 @@
-import type { JSONSchema } from '@wasm-gaming/engine-specs';
+import type { EnginePayloads, EngineSpec, PropertySpec } from '@wasm-gaming/engine-specs';
 
 /**
  * The jgenesis runtime keeps its settings in a `WebConfigRef` that the emulator
@@ -467,51 +467,117 @@ export function resolveSystem(romFileName?: string, consoleHint?: string): Jgene
   return (consoleHint ? SYSTEM_BY_CONSOLE[consoleHint] : null) ?? null;
 }
 
-function schemaForOption(option: JgenesisOptionSpec): JSONSchema {
-  if (option.type === 'boolean') {
-    return { type: 'boolean', default: option.default, description: option.description };
-  }
+// ------------------------------------------------------------ contract
+
+/** Bytes, or a thunk that produces them only when the engine actually needs them. */
+export type JgenesisAsset =
+  | Uint8Array
+  | ArrayBuffer
+  | null
+  | (() => Uint8Array | ArrayBuffer | null | Promise<Uint8Array | ArrayBuffer | null>);
+
+/** The engine: fixed for the life of the wasm instance. */
+export interface JgenesisEngineConfig {
+  /** wasm-bindgen glue URL. Defaults to the build next to the SDK that fits the page (threaded when cross-origin isolated). */
+  jsUrl?: string;
+  /** WASM URL, matching the glue. */
+  wasmUrl?: string;
+}
+
+export interface JgenesisAssets {
+  /** The cartridge. Its file name's extension picks the system (see `options.romFileName`). */
+  rom?: JgenesisAsset;
+}
+
+export interface JgenesisStorage {
+  /**
+   * Folder for this game's save states, inside the engine's own: OPFS
+   * `jgenesis/<namespace>/`. (Cartridge saves are upstream's, in IndexedDB by ROM name.)
+   *
+   * @defaultValue `"default"`
+   */
+  namespace?: string;
+  /** `null` keeps no save states; otherwise they are written to OPFS. */
+  persist?: 'opfs' | null;
+}
+
+export interface JgenesisEvents {
+  /** Files were just written to (or removed from) `jgenesis/<namespace>/`. */
+  saves: { files: string[] };
+}
+
+export interface JgenesisPayloads extends EnginePayloads {
+  config: JgenesisEngineConfig;
+  options: JgenesisOptions;
+  assets: JgenesisAssets;
+  storage: JgenesisStorage;
+  events: JgenesisEvents;
+}
+
+function specForOption(option: JgenesisOptionSpec): PropertySpec<boolean | string> {
   return {
-    type: 'string',
-    enum: option.values.map((choice) => choice.value),
     default: option.default,
     description: option.description,
+    live: !option.requiresReset,
+    enum: option.type === 'boolean' ? [true, false] : option.values.map((choice) => choice.value),
   };
 }
 
-export const JGENESIS_OPTIONS_SCHEMA: JSONSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
+export const JGENESIS_SPEC: EngineSpec<JgenesisPayloads> = {
+  config: {
+    jsUrl: { live: false, description: 'wasm-bindgen glue URL. Defaults to the build next to the SDK.' },
+    wasmUrl: { live: false, description: 'WASM URL, matching the glue.' },
+  },
+  options: {
+    ...(Object.fromEntries(JGENESIS_ENGINE_OPTIONS.map((option) => [option.key, specForOption(option)])) as Record<
+      string,
+      PropertySpec<boolean | string>
+    >),
+    // No declared default: a default here would always reach the SDK and win over the
+    // `console` hint ('game.bin' is a Genesis). The SDK falls back to it itself.
     romFileName: {
-      type: 'string',
-      default: 'game.bin',
-      description:
-        'ROM filename passed to jgenesis when opening bytes from host memory. The extension selects the emulated system.',
+      live: false,
+      description: 'The name jgenesis is given for the ROM; its extension selects the system. Without it, `console` picks one (game.bin otherwise).',
     },
-    fileName: {
-      type: 'string',
-      description: 'Alias for romFileName, accepted for hosts that report the picked file name here.',
-    },
+    fileName: { live: false, description: 'Alias for romFileName.' },
     console: {
-      type: 'string',
-      enum: ['megadrive', 'snes', 'sms', 'gg', 'nes', 'gba'],
       default: 'megadrive',
-      description: 'Console target hint, used when the ROM filename has no recognizable extension.',
+      enum: ['megadrive', 'snes', 'sms', 'gg', 'nes', 'gba'],
+      live: false,
+      description: 'The system, when the ROM name has no extension jgenesis knows.',
     },
-    genesisTimingMode: {
-      type: 'string',
-      enum: ['auto', 'ntsc', 'pal'],
-      default: 'auto',
-      description: 'Genesis timing preference for host-level configuration UIs.',
+    genesisRegion: {
+      default: 'Auto',
+      enum: ['Auto', 'Americas', 'Japan', 'Europe'],
+      live: false,
+      description: 'Genesis hardware region.',
+    },
+    smsRegion: {
+      default: 'Auto',
+      enum: ['Auto', 'International', 'Domestic'],
+      live: false,
+      description: 'Master System / Game Gear hardware region.',
     },
     escMenu: {
-      type: 'boolean',
       default: true,
-      description: 'Show the built-in in-game settings menu when the player presses Escape.',
+      enum: [true, false],
+      live: false,
+      description: 'The built-in settings overlay on Escape. Off when the engine app runs the game.',
     },
-    ...Object.fromEntries(
-      JGENESIS_ENGINE_OPTIONS.map((option) => [option.key, schemaForOption(option)]),
-    ),
+  },
+  assets: {
+    rom: {
+      allowedTypes: ['.bin', '.gen', '.md', '.smd', '.32x', '.sms', '.gg', '.sfc', '.smc', '.gba'],
+      live: false,
+      description: 'The cartridge. Required to start.',
+    },
+  },
+  storage: {
+    namespace: {
+      default: 'default',
+      live: false,
+      description: "Folder for this game's save states (OPFS jgenesis/<namespace>/).",
+    },
+    persist: { enum: ['opfs', null], live: false, description: 'null keeps no save states.' },
   },
 };

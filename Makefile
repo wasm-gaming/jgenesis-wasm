@@ -1,20 +1,18 @@
 # @wasm-gaming/jgenesis-wasm — build & preview
 #
-#   make build     Full build → dist/ (TypeScript SDK + WASM)
-#   make preview   Serve dist/ at http://localhost:$(PORT)
-#
-# build-demo preserves upstream jgenesis index output by moving dist/index.html
-# to dist/original/index.html before writing this package's demo shell.
+#   make build      Full build → dist/ (TypeScript SDK + WASM)
+#   make build-sdk  TypeScript + the contract runtime + the app + demo page (no WASM)
+#   make test       Type-check, then the tests against the built package
+#   make preview    Serve dist/ at http://localhost:$(PORT)
 
 BIN := node_modules/.bin
 
 PORT ?= 8026
 
-# Shared demo template shipped by the engine contract package; this repo only
-# adds index.html + theme.genesis.css on top of it.
-SPECS_DEMO := node_modules/@wasm-gaming/engine-specs/demo
+# The contract package: its runtime ships beside the SDK (build-specs).
+SPECS := node_modules/@wasm-gaming/engine-specs
 
-.PHONY: build build-sdk build-lib build-manifest build-demo build-wasm \
+.PHONY: build build-sdk build-lib build-specs build-app build-demo build-wasm \
 	preview typecheck test release-check i install clean help
 
 i: install
@@ -27,31 +25,33 @@ node_modules: package.json
 
 build: build-wasm build-sdk ## Full build → dist/ (WASM first, then SDK/demo)
 
-build-sdk: build-lib build-manifest build-demo ## TypeScript + manifest + demo shell
+build-sdk: build-lib build-specs build-app build-demo ## The published SDK: TypeScript + the contract runtime + the app, and the demo page
 
-build-lib: node_modules ## Compile SDK/options/manifest → dist/jgenesis/
+build-lib: node_modules ## Compile SDK/options → dist/jgenesis/
 	$(BIN)/tsc -p tsconfig.json
 
-build-manifest: build-lib ## Serialize typed manifest → dist/manifest.json
-	node scripts/emit-manifest.mjs
+build-specs: build-lib ## Ship the contract runtime beside the SDK and import it relatively
+	cp $(SPECS)/dist/engine-specs.js dist/jgenesis/engine-specs.js
+	node scripts/localize-specs.mjs dist/jgenesis
 
-build-demo: build-lib ## Compile demo + keep upstream index at dist/original/index.html
-	@mkdir -p dist/original
-	@if [ -f dist/index.html ] && [ ! -f dist/original/index.html ]; then mv dist/index.html dist/original/index.html; fi
-	$(BIN)/tsc -p tsconfig.demo.json
-	rm -rf dist/demo
-	cp -R $(SPECS_DEMO) dist/demo
+build-app: ## The engine's own app (suspend points + pause menu) → dist/jgenesis/app/
+	rm -rf dist/jgenesis/app
+	mkdir -p dist/jgenesis/app
+	cp src/app/app.js src/app/app.css dist/jgenesis/app/
+
+build-demo: build-lib ## The no-build demo page → dist/index.html (+ the COOP/COEP service worker for the threaded build)
 	cp src/demo/index.html dist/index.html
-	cp src/demo/theme.genesis.css dist/theme.genesis.css
+	mkdir -p dist/vendor
+	cp src/demo/vendor/coi-serviceworker.min.js dist/vendor/
 
 build-wasm: ## Build jgenesis runtime artifacts via Docker wrapper
 	bash scripts/build-jgenesis-docker.sh
 
 typecheck: build-lib
 	$(BIN)/tsc -p tsconfig.json --noEmit
-	$(BIN)/tsc -p tsconfig.demo.json --noEmit
 
-test: typecheck
+test: typecheck build-sdk ## Type-check, then run tests/ against the built package
+	node --test tests/*.test.mjs
 
 release-check: test
 	npm config get registry
