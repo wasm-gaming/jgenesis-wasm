@@ -39,10 +39,8 @@ build-app: ## The engine's own app (suspend points + pause menu) → dist/jgenes
 	mkdir -p dist/jgenesis/app
 	cp src/app/app.js src/app/app.css dist/jgenesis/app/
 
-build-demo: build-lib ## The no-build demo page → dist/index.html (+ the COOP/COEP service worker for the threaded build)
+build-demo: build-lib ## The no-build demo page → dist/index.html (single-thread locally; Pages adds coi-serviceworker)
 	cp src/demo/index.html dist/index.html
-	mkdir -p dist/vendor
-	cp src/demo/vendor/coi-serviceworker.min.js dist/vendor/
 
 build-wasm: ## Build jgenesis runtime artifacts via Docker wrapper
 	bash scripts/build-jgenesis-docker.sh
