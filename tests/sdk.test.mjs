@@ -44,3 +44,25 @@ test('the d-pad and the left stick are the arrows; nothing held, nothing pressed
   assert.equal(padKeys('genesis', null).size, 0);
   for (const map of Object.values(JGENESIS_PAD_KEYS)) for (const code of Object.values(map)) assert.match(code, /^(Key[A-Z]|Enter|ShiftRight)$/);
 });
+
+test('remapping: physical keys stand for jgenesis keys, freed defaults are swallowed, the pad follows', async () => {
+  const { controlTables, JGENESIS_CONTROLS, JGENESIS_OPTION_SYSTEM } = await import('../dist/jgenesis/jgenesis.sdk.js');
+  assert.deepEqual(JGENESIS_CONTROLS.genesis.map((c) => c.id), ['a', 'b', 'x', 'y', 'z', 'c', 'mode', 'start', 'up', 'down', 'left', 'right']);
+  assert.equal(JGENESIS_OPTION_SYSTEM.filterMode, null);
+  assert.equal(JGENESIS_OPTION_SYSTEM.genesisRegion, 'genesis');
+
+  // A on K (its default, KeyA, is free now); B on the A button of the pad... and on button 3.
+  const tables = controlTables('genesis', { keys: { a: 'KeyK' }, buttons: { b: 3, y: 1 } });
+  assert.equal(tables.keys.get('KeyK'), 'KeyA');
+  assert.ok(tables.blocked.has('KeyA'));
+  assert.equal(tables.pad[3], 'KeyS'); // B's key, now on button 3
+  assert.equal(tables.pad[1], 'KeyW'); // Y's key, now on button 1
+  const held = padKeys('genesis', { buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: i === 3 })), axes: [0, 0] }, tables.pad);
+  assert.deepEqual([...held], ['KeyS']);
+
+  // A swap keeps every default bound: nothing is swallowed.
+  const swapped = controlTables('genesis', { keys: { a: 'KeyS', b: 'KeyA' } });
+  assert.equal(swapped.keys.get('KeyS'), 'KeyA');
+  assert.equal(swapped.keys.get('KeyA'), 'KeyS');
+  assert.equal(swapped.blocked.size, 0);
+});

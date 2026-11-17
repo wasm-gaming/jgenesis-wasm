@@ -63,7 +63,7 @@ export type {
   JgenesisSystem,
 } from './jgenesis.options.js';
 export type { JgenesisConfig } from './jgenesis.config.js';
-export { JGENESIS_SPEC } from './jgenesis.options.js';
+export { JGENESIS_OPTION_SYSTEM, JGENESIS_SPEC } from './jgenesis.options.js';
 
 const ENGINE_ID = 'jgenesis';
 const DEFAULT_STORAGE_NAMESPACE = 'default';
@@ -181,14 +181,77 @@ export const JGENESIS_PAD_KEYS: Readonly<Record<JgenesisSystem, Readonly<Record<
 });
 const PAD_DIRECTIONS: Readonly<Record<number, string>> = { 12: 'ArrowUp', 13: 'ArrowDown', 14: 'ArrowLeft', 15: 'ArrowRight' };
 
+/** A console control a player can rebind: its name, and the key and pad button it has by default. */
+export interface JgenesisControlSpec {
+  id: string;
+  label: string;
+  /** The key jgenesis itself reads for it (`KeyboardEvent.code`). */
+  code: string;
+  /** Its gamepad button by default (standard mapping). */
+  button: number;
+}
+
+const DIRECTION_CONTROLS: JgenesisControlSpec[] = [
+  { id: 'up', label: 'Up', code: 'ArrowUp', button: 12 },
+  { id: 'down', label: 'Down', code: 'ArrowDown', button: 13 },
+  { id: 'left', label: 'Left', code: 'ArrowLeft', button: 14 },
+  { id: 'right', label: 'Right', code: 'ArrowRight', button: 15 },
+];
+const controlsFrom = (labels: Record<number, [string, string]>, system: JgenesisSystem): JgenesisControlSpec[] => [
+  ...Object.entries(labels).map(([button, [id, label]]) => ({
+    id,
+    label,
+    code: JGENESIS_PAD_KEYS[system][Number(button)]!,
+    button: Number(button),
+  })),
+  ...DIRECTION_CONTROLS,
+];
+
+/** Each system's controls, for remapping (`play.setControls()`). */
+export const JGENESIS_CONTROLS: Readonly<Record<JgenesisSystem, readonly JgenesisControlSpec[]>> = Object.freeze({
+  genesis: controlsFrom({ 0: ['a', 'A'], 1: ['b', 'B'], 5: ['c', 'C'], 2: ['x', 'X'], 3: ['y', 'Y'], 4: ['z', 'Z'], 8: ['mode', 'Mode'], 9: ['start', 'Start'] }, 'genesis'),
+  smsgg: controlsFrom({ 0: ['one', '1'], 1: ['two', '2'], 9: ['start', 'Start / Pause'] }, 'smsgg'),
+  snes: controlsFrom({ 0: ['b', 'B'], 1: ['a', 'A'], 2: ['y', 'Y'], 3: ['x', 'X'], 4: ['l', 'L'], 5: ['r', 'R'], 8: ['select', 'Select'], 9: ['start', 'Start'] }, 'snes'),
+  gba: controlsFrom({ 0: ['a', 'A'], 1: ['b', 'B'], 4: ['l', 'L'], 5: ['r', 'R'], 8: ['select', 'Select'], 9: ['start', 'Start'] }, 'gba'),
+});
+
+/** The player's bindings for the running system, by control id: physical keys and pad buttons. */
+export interface JgenesisControls {
+  keys?: Record<string, string>;
+  buttons?: Record<string, number>;
+}
+
+/**
+ * What a set of bindings means for one system: the pad table (button → jgenesis' key) and,
+ * for the keyboard, which physical key stands for which of jgenesis' keys, and which of its
+ * default keys no control has any more (swallowed, so they do nothing).
+ */
+export function controlTables(system: JgenesisSystem, controls: JgenesisControls = {}) {
+  const pad: Record<number, string> = {};
+  const keys = new Map<string, string>();
+  const bound = new Set<string>();
+  for (const control of JGENESIS_CONTROLS[system]) {
+    const button = controls.buttons?.[control.id] ?? control.button;
+    pad[button] = control.code;
+    const physical = controls.keys?.[control.id] ?? control.code;
+    bound.add(physical);
+    if (physical !== control.code) keys.set(physical, control.code);
+  }
+  const blocked = new Set(
+    JGENESIS_CONTROLS[system].map((control) => control.code).filter((code) => !bound.has(code)),
+  );
+  return { pad, keys, blocked };
+}
+
 /** The keys a pad holds, for a system: buttons, d-pad and left stick. */
 export function padKeys(
   system: JgenesisSystem,
   pad: { buttons: ReadonlyArray<{ pressed: boolean }>; axes: ReadonlyArray<number> } | null | undefined,
+  table: Readonly<Record<number, string>> = { ...JGENESIS_PAD_KEYS[system], ...PAD_DIRECTIONS },
 ): Set<string> {
   const keys = new Set<string>();
   if (!pad) return keys;
-  const map = { ...JGENESIS_PAD_KEYS[system], ...PAD_DIRECTIONS };
+  const map = table;
   pad.buttons.forEach((button, index) => {
     const code = map[index];
     if (button?.pressed && code) keys.add(code);
@@ -308,6 +371,8 @@ export class JgenesisPlay extends EnginePlayBase<JgenesisPayloads> {
   #padFrame = 0;
   #lastFrame: HTMLCanvasElement | null = null;
   #held = new Set<string>();
+  #controls: JgenesisControls = {};
+  #tables: ReturnType<typeof controlTables> | null = null;
 
   constructor(init?: EngineInit<JgenesisPayloads>, events?: EventEmitter<EventsOf<JgenesisPayloads>>) {
     super(JGENESIS_SPEC, init, events);
@@ -328,6 +393,16 @@ export class JgenesisPlay extends EnginePlayBase<JgenesisPayloads> {
   /** The system jgenesis emulates for this ROM (from its file name). */
   get system(): JgenesisSystem {
     return this.#system;
+  }
+
+  /**
+   * Rebind the running system's controls (ids from {@link JGENESIS_CONTROLS}): physical keys
+   * (`KeyboardEvent.code`) and gamepad buttons (standard mapping). What is left out keeps its
+   * default. Live.
+   */
+  setControls(controls: JgenesisControls): void {
+    this.#controls = controls;
+    this.#tables = controlTables(this.#system, controls);
   }
 
   /** The live settings; writes apply to the running game. */
@@ -488,6 +563,8 @@ export class JgenesisPlay extends EnginePlayBase<JgenesisPayloads> {
   }
 
   protected override close(): void {
+    window.removeEventListener('keydown', this.#onKey, true);
+    window.removeEventListener('keyup', this.#onKey, true);
     cancelAnimationFrame(this.#padFrame);
     this.#padFrame = 0;
     this.#releaseKeys();
@@ -576,6 +653,9 @@ export class JgenesisPlay extends EnginePlayBase<JgenesisPayloads> {
     }
     channel.request_open_rom_bytes(rom, romFileName);
     this.#pollPads();
+    this.#tables = controlTables(this.#system, this.#controls);
+    window.addEventListener('keydown', this.#onKey, true);
+    window.addEventListener('keyup', this.#onKey, true);
   }
 
   async #values<T>(kind: 'config' | 'options' | 'assets' | 'storage'): Promise<T> {
@@ -598,10 +678,25 @@ export class JgenesisPlay extends EnginePlayBase<JgenesisPayloads> {
     this.#padFrame = requestAnimationFrame(this.#pollPads);
     if (this.#pauseOwner) return;
     const pad = Array.from(globalThis.navigator?.getGamepads?.() ?? []).find((entry) => entry?.connected) ?? null;
-    const now = padKeys(this.#system, pad);
+    const now = padKeys(this.#system, pad, this.#tables?.pad);
     for (const code of this.#held) if (!now.has(code)) this.#key('keyup', code);
     for (const code of now) if (!this.#held.has(code)) this.#key('keydown', code);
     this.#held = now;
+  };
+
+  /**
+   * The keyboard, remapped: a physical key bound to a control reaches jgenesis as that
+   * control's own key, and a default key no control has any more is swallowed. Only real
+   * presses (`isTrusted`): the ones this SDK sends pass through.
+   */
+  #onKey = (event: KeyboardEvent): void => {
+    const tables = this.#tables;
+    if (!tables || !event.isTrusted || this.#pauseOwner) return;
+    const target = tables.keys.get(event.code);
+    if (target === undefined && !tables.blocked.has(event.code)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (target !== undefined && !event.repeat) this.#key(event.type as 'keydown' | 'keyup', target);
   };
 
   #key(type: 'keydown' | 'keyup', code: string): void {

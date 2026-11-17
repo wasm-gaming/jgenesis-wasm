@@ -1,4 +1,4 @@
-import type { EnginePayloads, EngineSpec, PropertySpec } from '@wasm-gaming/engine-specs';
+import type { EnginePayloads, EngineSpec, Localized, PropertySpec, SettingGroup } from '@wasm-gaming/engine-specs';
 
 /**
  * The jgenesis runtime keeps its settings in a `WebConfigRef` that the emulator
@@ -514,12 +514,69 @@ export interface JgenesisPayloads extends EnginePayloads {
   events: JgenesisEvents;
 }
 
+/**
+ * The settings screen's words (engine-specs `settingsModel()`): each option's section, its
+ * Spanish name and the Spanish of its values. The system an option belongs to is in
+ * {@link JGENESIS_OPTION_SYSTEM}: the app shows the general ones and the running system's.
+ */
+const SETTINGS: Readonly<Record<string, { group: SettingGroup; es: string; values?: Record<string, string> }>> = {
+  filterMode: { group: 'video', es: 'Suavizado', values: { Nearest: 'Píxeles nítidos', Linear: 'Suavizado' } },
+  preprocessShader: { group: 'video', es: 'Shader de fusión', values: { None: 'Ninguno', NtscComposite: 'NTSC compuesto', HorizontalBlurThreePixels: 'Desenfoque horizontal' } },
+  autoPrescale: { group: 'video', es: 'Preescalado' },
+  genesisRegion: { group: 'emulation', es: 'Región', values: { Auto: 'Automática', Americas: 'América (NTSC)', Japan: 'Japón (NTSC)', Europe: 'Europa (PAL)' } },
+  genesisAspectRatio: { group: 'video', es: 'Proporción', values: { Auto: 'Automática', SquarePixels: 'Cuadrada' } },
+  genesisM68kDivider: { group: 'emulation', es: 'Velocidad de la CPU principal' },
+  genesisNonLinearColorScale: { group: 'video', es: 'Escala de color no lineal' },
+  genesisRemoveSpriteLimits: { group: 'emulation', es: 'Quitar el límite de sprites' },
+  genesisEmulateLowPass: { group: 'audio', es: 'Filtro paso bajo' },
+  genesisRenderVerticalBorder: { group: 'video', es: 'Borde vertical' },
+  genesisRenderHorizontalBorder: { group: 'video', es: 'Borde horizontal' },
+  smsTimingMode: { group: 'emulation', es: 'Temporización' },
+  smsRegion: { group: 'emulation', es: 'Región de la consola', values: { Auto: 'Automática', International: 'Internacional', Domestic: 'Japonesa' } },
+  smsAspectRatio: { group: 'video', es: 'Proporción (Master System)', values: { SquarePixels: 'Cuadrada' } },
+  ggAspectRatio: { group: 'video', es: 'Proporción (Game Gear)', values: { GgLcd: 'Pantalla de la GG', SquarePixels: 'Cuadrada' } },
+  smsCropVerticalBorder: { group: 'video', es: 'Recortar el borde vertical' },
+  smsCropLeftBorder: { group: 'video', es: 'Recortar el borde izquierdo' },
+  smsFmEnabled: { group: 'audio', es: 'Unidad de sonido FM' },
+  smsRemoveSpriteLimit: { group: 'emulation', es: 'Quitar el límite de sprites' },
+  snesAspectRatio: { group: 'video', es: 'Proporción', values: { SquarePixels: 'Cuadrada' } },
+  snesAudioInterpolation: { group: 'audio', es: 'Interpolación ADPCM', values: { Gaussian: 'Gaussiana', Hermite: 'Hermite cúbica' } },
+  gbaColorCorrection: { group: 'video', es: 'Corrección de color', values: { None: 'Ninguna', GbaLcd: 'Pantalla de la GBA' } },
+  gbaAudioInterpolation: { group: 'audio', es: 'Interpolación del audio', values: { NearestNeighbor: 'Más cercano', CubicHermite: 'Hermite cúbica', WindowedSinc: 'Sinc con ventana' } },
+  gbaSkipBiosAnimation: { group: 'emulation', es: 'Saltar la intro de la BIOS' },
+  gbaFrameBlending: { group: 'video', es: 'Fusión de fotogramas' },
+  gbaPsgLowPass: { group: 'audio', es: 'Paso bajo del PSG' },
+};
+
+/** The system each option belongs to, or null for those that apply to every system. */
+export const JGENESIS_OPTION_SYSTEM: Readonly<Record<string, JgenesisSystem | null>> = Object.fromEntries(
+  JGENESIS_OPTION_GROUPS.flatMap((group) => group.options.map((option) => [option.key, group.system])),
+);
+
+function settingFields(option: JgenesisOptionSpec): Pick<PropertySpec<boolean | string>, 'label' | 'group' | 'valueLabels'> {
+  const words = SETTINGS[option.key];
+  if (!words) return {};
+  const label: Localized = { en: option.label, es: words.es };
+  if (option.type === 'boolean') return { label, group: words.group };
+  const valueLabels = option.values.map((choice): Localized => {
+    const spanish = words.values?.[choice.value];
+    return spanish ? { en: choice.label, es: spanish } : choice.label;
+  });
+  return { label, group: words.group, valueLabels };
+}
+
+const settingFieldsOf = (key: string) => {
+  const option = JGENESIS_ENGINE_OPTIONS.find((candidate) => candidate.key === key);
+  return option ? settingFields(option) : {};
+};
+
 function specForOption(option: JgenesisOptionSpec): PropertySpec<boolean | string> {
   return {
     default: option.default,
     description: option.description,
     live: !option.requiresReset,
     enum: option.type === 'boolean' ? [true, false] : option.values.map((choice) => choice.value),
+    ...settingFields(option),
   };
 }
 
@@ -551,12 +608,14 @@ export const JGENESIS_SPEC: EngineSpec<JgenesisPayloads> = {
       enum: ['Auto', 'Americas', 'Japan', 'Europe'],
       live: false,
       description: 'Genesis hardware region.',
+      ...settingFieldsOf('genesisRegion'),
     },
     smsRegion: {
       default: 'Auto',
       enum: ['Auto', 'International', 'Domestic'],
       live: false,
       description: 'Master System / Game Gear hardware region.',
+      ...settingFieldsOf('smsRegion'),
     },
     escMenu: {
       default: true,
